@@ -1,0 +1,163 @@
+/**
+ * Componente Alpine que encapsula o Chart.js. Nenhuma Blade de tela e nenhum
+ * componente Livewire toca a biblioteca — só o `<x-ui.chart>` fala com este arquivo.
+ */
+import { Chart } from './index'
+import { chartTheme, formatMoney, formatMoneyShort } from './theme'
+
+/**
+ * Cores chegam como nome de token ("income", "expense", "info") ou como cor literal
+ * — o segundo caso é a cor da própria categoria, que vem do registro e não do tema.
+ */
+function color(value, theme) {
+    return theme[value] ?? value
+}
+
+function tooltipStyle(theme, money) {
+    return {
+        backgroundColor: theme.surface,
+        borderColor: theme.grid,
+        borderWidth: 1,
+        cornerRadius: 4,
+        padding: 8,
+        displayColors: true,
+        boxWidth: 8,
+        boxHeight: 8,
+        titleColor: theme.foreground,
+        bodyColor: theme.foreground,
+        titleFont: { family: theme.mono, size: 11 },
+        bodyFont: { family: theme.mono, size: 12 },
+        callbacks: money
+            ? {
+                  label: (item) => ` ${item.dataset.label}: ${formatMoney(item.parsed.y ?? item.parsed)}`,
+              }
+            : {},
+    }
+}
+
+function cartesianScales(theme, money) {
+    return {
+        x: {
+            grid: { display: false },
+            border: { display: false },
+            ticks: {
+                color: theme.axis,
+                font: { family: theme.mono, size: 11 },
+            },
+        },
+        y: {
+            beginAtZero: true,
+            grid: { color: theme.grid, drawTicks: false },
+            border: { display: false, dash: [3, 3] },
+            ticks: {
+                color: theme.axis,
+                font: { family: theme.mono, size: 10 },
+                padding: 8,
+                callback: money ? (value) => formatMoneyShort(value) : undefined,
+            },
+        },
+    }
+}
+
+function build({ type, labels, series, money }, theme) {
+    const base = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 250 },
+        plugins: {
+            legend: { display: false },
+            tooltip: tooltipStyle(theme, money),
+        },
+    }
+
+    if (type === 'doughnut') {
+        return {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: series.map((set) => ({
+                    data: set.data,
+                    backgroundColor: (set.colors ?? [set.color]).map((value) => color(value, theme)),
+                    borderColor: theme.surface,
+                    borderWidth: 2,
+                })),
+            },
+            options: { ...base, cutout: '62%' },
+        }
+    }
+
+    if (type === 'line') {
+        return {
+            type: 'line',
+            data: {
+                labels,
+                datasets: series.map((set) => ({
+                    label: set.label,
+                    data: set.data,
+                    borderColor: color(set.color, theme),
+                    backgroundColor: `${color(set.color, theme)}22`,
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
+                    tension: 0.3,
+                    fill: set.fill ?? false,
+                })),
+            },
+            options: { ...base, scales: cartesianScales(theme, money) },
+        }
+    }
+
+    return {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: series.map((set) => ({
+                label: set.label,
+                data: set.data,
+                backgroundColor: color(set.color, theme),
+                borderRadius: { topLeft: 2, topRight: 2 },
+                barThickness: 14,
+                maxBarThickness: 14,
+            })),
+        },
+        options: {
+            ...base,
+            scales: cartesianScales(theme, money),
+        },
+    }
+}
+
+export default function registerChart() {
+    document.addEventListener('alpine:init', () => {
+        window.Alpine.data('chart', (config) => ({
+            instance: null,
+
+            init() {
+                this.instance = new Chart(this.$refs.canvas, build(config, chartTheme()))
+
+                // O Livewire nunca re-renderiza este bloco (wire:ignore); a atualização
+                // de dados chega por evento e é repassada para o próprio Chart.js.
+                this.$el.addEventListener('chart:data', (event) => this.replace(event.detail))
+            },
+
+            replace({ labels, series }) {
+                if (! this.instance) {
+                    return
+                }
+
+                this.instance.data.labels = labels
+                series.forEach((set, index) => {
+                    if (this.instance.data.datasets[index]) {
+                        this.instance.data.datasets[index].data = set.data
+                    }
+                })
+                this.instance.update()
+            },
+
+            destroy() {
+                this.instance?.destroy()
+                this.instance = null
+            },
+        }))
+    })
+}

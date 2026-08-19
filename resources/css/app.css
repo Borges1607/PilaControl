@@ -10,29 +10,45 @@
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-    --color-zinc-50: #fafafa;
-    --color-zinc-100: #f5f5f5;
-    --color-zinc-200: #e5e5e5;
-    --color-zinc-300: #d4d4d4;
-    --color-zinc-400: #a3a3a3;
-    --color-zinc-500: #737373;
-    --color-zinc-600: #525252;
-    --color-zinc-700: #404040;
-    --color-zinc-800: #262626;
-    --color-zinc-900: #171717;
-    --color-zinc-950: #0a0a0a;
+    /* Paleta do protótipo (Figma Make). Nenhum hex solto em Blade — sempre um token daqui. */
+    --color-background: #0d1117;
+    --color-foreground: #e6edf3;
+    --color-card: #161b22;
+    --color-secondary: #1c2128;
+    --color-secondary-foreground: #8b949e;
+    --color-muted: #1c2128;
+    --color-muted-foreground: #6e7681;
+    --color-border: #21262d;
+    --color-income: #00e676;
+    --color-expense: #f85149;
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
-    --color-accent-foreground: var(--color-white);
+    /* `--accent` do protótipo: estado selecionado, links, barras de progresso neutras. */
+    --color-info: #388bfd;
+
+    /* Cantos de 4px do protótipo, aplicados também aos componentes do Flux. */
+    --radius-xs: 2px;
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 4px;
+    --radius-xl: 6px;
+    --radius-2xl: 8px;
+    --radius-3xl: 12px;
 }
 
+/*
+ * Ações primárias. O Flux lê `--color-accent` — no protótipo isso é o verde.
+ * Precisa estar sob `.dark` porque o `flux.css` define o seu próprio valor lá,
+ * e a aplicação roda sempre em tema escuro.
+ */
 @layer theme {
+
+    :root,
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-accent: #00e676;
+        --color-accent-content: #00e676;
+        --color-accent-foreground: #0d1117;
     }
 }
 
@@ -43,7 +59,39 @@
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
+        border-color: var(--color-border, currentColor);
+    }
+
+    html,
+    body {
+        background-color: var(--color-background);
+        color: var(--color-foreground);
+    }
+}
+
+/* Barra de rolagem fina, como no protótipo. */
+@layer base {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-border) transparent;
+    }
+
+    ::-webkit-scrollbar {
+        width: 4px;
+        height: 4px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--color-border);
+        border-radius: 2px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-muted-foreground);
     }
 }
 
@@ -51,16 +99,28 @@
     @apply grid gap-2;
 }
 
+/* Label do `Field` do protótipo: pequeno, discreto, tracking largo. */
 [data-flux-label] {
-    @apply  !mb-0 !leading-tight;
+    @apply !mb-0 !leading-tight text-xs! font-medium! tracking-wide! text-muted-foreground!;
 }
 
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
-    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+    @apply outline-hidden ring-2 ring-info ring-offset-2 ring-offset-background;
 }
 
-/* \[:where(&)\]:size-4 {
-    @apply size-4;
-} */
+/*
+ * Alinhamento do Flux à paleta: os stubs trazem tons de zinc fixos que não temos como
+ * passar por atributo. Reescrevemos só as bordas e superfícies, nunca o comportamento.
+ */
+[data-flux-table] [data-flux-cell],
+[data-flux-table] [data-flux-column] {
+    border-color: var(--color-border) !important;
+}
+
+[data-flux-control] {
+    background-color: var(--color-secondary) !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-foreground) !important;
+}
