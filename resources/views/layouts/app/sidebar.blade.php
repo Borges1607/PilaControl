@@ -1,91 +1,138 @@
+@php
+    // Navegação do protótipo. `route` nulo = tela ainda não construída.
+    $nav = [
+        ['label' => 'Dashboard', 'icon' => 'squares-2x2', 'route' => 'dashboard'],
+        ['label' => 'Transações', 'icon' => 'arrows-right-left', 'route' => 'transactions.index'],
+        ['label' => 'Orçamento', 'icon' => 'rectangle-group', 'route' => 'budgets.index'],
+        ['label' => 'Metas', 'icon' => 'flag', 'route' => null],
+        ['label' => 'Relatórios', 'icon' => 'chart-bar', 'route' => null],
+    ];
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white dark:bg-zinc-800">
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-            <flux:sidebar.header>
+    <body class="min-h-screen bg-background text-foreground">
+        <flux:sidebar sticky collapsible="mobile" class="w-56! gap-0! border-e border-border bg-card p-0!">
+            <flux:sidebar.header class="h-14 shrink-0 border-b border-border px-5">
                 <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
                 <flux:sidebar.collapse class="lg:hidden" />
             </flux:sidebar.header>
 
-            <flux:sidebar.nav>
-                <flux:sidebar.group :heading="__('Platform')" class="grid">
-                    <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                        {{ __('Dashboard') }}
-                    </flux:sidebar.item>
-                </flux:sidebar.group>
+            <flux:sidebar.nav class="p-3">
+                @foreach ($nav as $item)
+                    @if ($item['route'])
+                        <flux:sidebar.item
+                            :icon="$item['icon']"
+                            :href="route($item['route'])"
+                            :current="request()->routeIs($item['route'])"
+                            wire:navigate
+                            class="text-muted-foreground! data-current:bg-secondary! data-current:text-foreground! data-current:border-transparent! hover:bg-white/5! hover:text-foreground!"
+                        >
+                            {{ $item['label'] }}
+                        </flux:sidebar.item>
+                    @else
+                        <flux:tooltip content="Em breve" position="right">
+                            <div
+                                class="flex h-8 w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground/60"
+                                aria-disabled="true"
+                            >
+                                <flux:icon :icon="$item['icon']" class="size-4 shrink-0" />
+                                {{ $item['label'] }}
+                            </div>
+                        </flux:tooltip>
+                    @endif
+                @endforeach
             </flux:sidebar.nav>
 
             <flux:spacer />
 
-            <flux:sidebar.nav>
-                <flux:sidebar.item icon="folder-git-2" href="https://github.com/laravel/livewire-starter-kit" target="_blank">
-                    {{ __('Repository') }}
-                </flux:sidebar.item>
+            <div class="flex shrink-0 flex-col gap-2 border-t border-border p-4">
+                <flux:button
+                    :href="route('transactions.index')"
+                    wire:navigate
+                    variant="primary"
+                    size="sm"
+                    icon="plus"
+                    class="w-full font-semibold!"
+                >
+                    Nova Transação
+                </flux:button>
 
-                <flux:sidebar.item icon="book-open-text" href="https://laravel.com/docs/starter-kits#livewire" target="_blank">
-                    {{ __('Documentation') }}
-                </flux:sidebar.item>
-            </flux:sidebar.nav>
-
-            <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
+                <flux:tooltip content="Em breve" position="top">
+                    <flux:button
+                        size="sm"
+                        icon="tag"
+                        disabled
+                        class="w-full border-border! bg-transparent! text-muted-foreground!"
+                    >
+                        Categorias
+                    </flux:button>
+                </flux:tooltip>
+            </div>
         </flux:sidebar>
 
-        <!-- Mobile User Menu -->
-        <flux:header class="lg:hidden">
+        <flux:header sticky class="h-14 border-b border-border bg-card px-5!">
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
+
+            <h1 class="text-sm font-semibold tracking-tight">
+                {{ $title ?? config('app.name') }}
+            </h1>
 
             <flux:spacer />
 
-            <flux:dropdown position="top" align="end">
-                <flux:profile
-                    :initials="auth()->user()->initials()"
-                    icon-trailing="chevron-down"
-                />
+            <span class="hidden font-mono text-xs text-muted-foreground sm:block">
+                {{ \App\Support\MonthLabel::weekdayDate(now()) }}
+            </span>
 
-                <flux:menu>
-                    <flux:menu.radio.group>
-                        <div class="p-0 text-sm font-normal">
-                            <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-                                <flux:avatar
-                                    :name="auth()->user()->name"
-                                    :initials="auth()->user()->initials()"
-                                />
+            <div class="ms-3 flex items-center gap-2 border-s border-border ps-3">
+                <flux:dropdown position="bottom" align="end">
+                    <button type="button" class="flex items-center gap-2" data-test="user-menu-button">
+                        <flux:avatar
+                            size="xs"
+                            circle
+                            :name="auth()->user()->name"
+                            initials:single
+                            class="bg-accent! font-bold! text-background!"
+                        />
 
-                                <div class="grid flex-1 text-start text-sm leading-tight">
-                                    <flux:heading class="truncate">{{ auth()->user()->name }}</flux:heading>
-                                    <flux:text class="truncate">{{ auth()->user()->email }}</flux:text>
-                                </div>
+                        <span class="hidden text-xs font-medium md:block">
+                            {{ str(auth()->user()->name)->before(' ') }}
+                        </span>
+                    </button>
+
+                    <flux:menu>
+                        <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
+                            <flux:avatar :name="auth()->user()->name" :initials="auth()->user()->initials()" />
+
+                            <div class="grid flex-1 text-start text-sm leading-tight">
+                                <flux:heading class="truncate">{{ auth()->user()->name }}</flux:heading>
+                                <flux:text class="truncate">{{ auth()->user()->email }}</flux:text>
                             </div>
                         </div>
-                    </flux:menu.radio.group>
 
-                    <flux:menu.separator />
+                        <flux:menu.separator />
 
-                    <flux:menu.radio.group>
                         <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
                             {{ __('Settings') }}
                         </flux:menu.item>
-                    </flux:menu.radio.group>
+                    </flux:menu>
+                </flux:dropdown>
 
-                    <flux:menu.separator />
-
-                    <form method="POST" action="{{ route('logout') }}" class="w-full">
-                        @csrf
-                        <flux:menu.item
-                            as="button"
-                            type="submit"
-                            icon="arrow-right-start-on-rectangle"
-                            class="w-full cursor-pointer"
-                            data-test="logout-button"
-                        >
-                            {{ __('Log out') }}
-                        </flux:menu.item>
-                    </form>
-                </flux:menu>
-            </flux:dropdown>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <flux:button
+                        type="submit"
+                        size="xs"
+                        variant="ghost"
+                        class="text-muted-foreground!"
+                        data-test="logout-button"
+                    >
+                        Sair
+                    </flux:button>
+                </form>
+            </div>
         </flux:header>
 
         {{ $slot }}
