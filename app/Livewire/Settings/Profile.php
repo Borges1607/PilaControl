@@ -10,7 +10,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-#[Title('Profile settings')]
+#[Title('Perfil')]
 class Profile extends Component
 {
     use ProfileValidationRules;
@@ -45,7 +45,7 @@ class Profile extends Component
 
         $user->save();
 
-        Flux::toast(variant: 'success', text: __('Profile updated.'));
+        Flux::toast(variant: 'success', text: 'Perfil atualizado.');
     }
 
     /**
@@ -63,7 +63,7 @@ class Profile extends Component
 
         $user->sendEmailVerificationNotification();
 
-        Flux::toast(text: __('A new verification link has been sent to your email address.'));
+        Flux::toast(text: 'Enviamos um novo link de confirmação para o seu e-mail.');
     }
 
     #[Computed]

@@ -1,89 +1,87 @@
 <div
-    class="py-6 space-y-6 border shadow-sm rounded-xl border-zinc-200 dark:border-white/10"
+    class="flex flex-col gap-3 rounded border border-border p-4"
     wire:cloak
     x-data="{ showRecoveryCodes: false }"
 >
-    <div class="px-6 space-y-2">
-        <div class="flex items-center gap-2">
-            <flux:icon.lock-closed variant="outline" class="size-4"/>
-            <flux:heading size="lg" level="3">{{ __('2FA recovery codes') }}</flux:heading>
-        </div>
-        <flux:text variant="subtle">
-            {{ __('Recovery codes let you regain access if you lose your 2FA device. Store them in a secure password manager.') }}
-        </flux:text>
+    <div class="flex items-center gap-2">
+        <flux:icon.lock-closed variant="mini" class="size-4 shrink-0 text-muted-foreground" />
+
+        <h4 class="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+            Códigos de recuperação
+        </h4>
     </div>
 
-    <div class="px-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <flux:button
-                x-show="!showRecoveryCodes"
-                icon="eye"
-                icon:variant="outline"
-                variant="primary"
-                @click="showRecoveryCodes = true;"
-                aria-expanded="false"
-                aria-controls="recovery-codes-section"
-            >
-                {{ __('View recovery codes') }}
-            </flux:button>
+    <p class="text-xs text-muted-foreground">
+        São a saída caso você perca o celular do autenticador. Guarde num gerenciador de senhas —
+        cada código serve uma vez só e some depois de usado.
+    </p>
 
+    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <flux:button
+            size="sm"
+            x-show="!showRecoveryCodes"
+            icon="eye"
+            @click="showRecoveryCodes = true"
+            aria-expanded="false"
+            aria-controls="recovery-codes-section"
+            class="border-border! bg-transparent! text-muted-foreground! hover:text-foreground!"
+        >
+            Ver os códigos
+        </flux:button>
+
+        <flux:button
+            size="sm"
+            x-show="showRecoveryCodes"
+            icon="eye-slash"
+            @click="showRecoveryCodes = false"
+            aria-expanded="true"
+            aria-controls="recovery-codes-section"
+            class="border-border! bg-transparent! text-muted-foreground! hover:text-foreground!"
+        >
+            Ocultar
+        </flux:button>
+
+        @if (filled($recoveryCodes))
             <flux:button
+                size="sm"
                 x-show="showRecoveryCodes"
-                icon="eye-slash"
-                icon:variant="outline"
-                variant="primary"
-                @click="showRecoveryCodes = false"
-                aria-expanded="true"
-                aria-controls="recovery-codes-section"
+                icon="arrow-path"
+                wire:click="regenerateRecoveryCodes"
+                class="border-border! bg-transparent! text-muted-foreground! hover:text-foreground!"
             >
-                {{ __('Hide recovery codes') }}
+                Gerar novos
             </flux:button>
+        @endif
+    </div>
+
+    <div
+        x-show="showRecoveryCodes"
+        x-transition
+        id="recovery-codes-section"
+        x-bind:aria-hidden="!showRecoveryCodes"
+    >
+        <div class="flex flex-col gap-3">
+            @error('recoveryCodes')
+                <x-ui.alert>{{ $message }}</x-ui.alert>
+            @enderror
 
             @if (filled($recoveryCodes))
-                <flux:button
-                    x-show="showRecoveryCodes"
-                    icon="arrow-path"
-                    variant="filled"
-                    wire:click="regenerateRecoveryCodes"
+                <div
+                    class="grid gap-1 rounded bg-secondary p-4 font-mono text-xs"
+                    role="list"
+                    aria-label="Códigos de recuperação"
                 >
-                    {{ __('Regenerate codes') }}
-                </flux:button>
+                    @foreach ($recoveryCodes as $code)
+                        <div role="listitem" class="select-text" wire:loading.class="animate-pulse opacity-50">
+                            {{ $code }}
+                        </div>
+                    @endforeach
+                </div>
+
+                <p class="text-[10px] text-muted-foreground">
+                    Gerar novos invalida os que estão aí em cima.
+                </p>
             @endif
-        </div>
-
-        <div
-            x-show="showRecoveryCodes"
-            x-transition
-            id="recovery-codes-section"
-            class="relative overflow-hidden"
-            x-bind:aria-hidden="!showRecoveryCodes"
-        >
-            <div class="mt-3 space-y-3">
-                @error('recoveryCodes')
-                    <flux:callout variant="danger" icon="x-circle" heading="{{$message}}"/>
-                @enderror
-
-                @if (filled($recoveryCodes))
-                    <div
-                        class="grid gap-1 p-4 font-mono text-sm rounded-lg bg-zinc-100 dark:bg-white/5"
-                        role="list"
-                        aria-label="{{ __('Recovery codes') }}"
-                    >
-                        @foreach($recoveryCodes as $code)
-                            <div
-                                role="listitem"
-                                class="select-text"
-                                wire:loading.class="opacity-50 animate-pulse"
-                            >
-                                {{ $code }}
-                            </div>
-                        @endforeach
-                    </div>
-                    <flux:text variant="subtle" class="text-xs">
-                        {{ __('Each recovery code can be used once to access your account and will be removed after use. If you need more, click Regenerate codes above.') }}
-                    </flux:text>
-                @endif
-            </div>
         </div>
     </div>
 </div>

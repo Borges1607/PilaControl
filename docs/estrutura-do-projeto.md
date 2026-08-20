@@ -63,7 +63,7 @@ PilaControl/
 │   │
 │   ├── Livewire/
 │   │   ├── Actions/Logout.php
-│   │   ├── Settings/                # Profile, Security, Appearance, TwoFactor
+│   │   ├── Settings/                # Profile, Security, TwoFactor — ver 3.6
 │   │   ├── Budgets/Index.php
 │   │   ├── Dashboard/Index.php
 │   │   ├── Transactions/Index.php
@@ -138,10 +138,10 @@ PilaControl/
     ├── Feature/
     │   ├── Auth/                    # 6 arquivos, já passando
     │   ├── Settings/
-    │   ├── FinanceScreensTest.php   # smoke das três rotas, página completa
+    │   ├── FinanceScreensTest.php   # smoke das cinco rotas, página completa
     │   ├── Livewire/                # espelha app/Livewire/
     │   +   Actions/
-    └── Unit/                        # MoneyTest, MonthLabelTest
+    └── Unit/                        # MoneyTest, MonthLabelTest, CategoryPresetsTest
 ```
 
 ---
@@ -166,6 +166,7 @@ PilaControl/
 | `TransactionModal` | dentro de `Livewire\Transactions\Index` | — (modal) | frontend pronto |
 | `CategoriesModal` | `Livewire\Categories\CategoriesModal` | — (modal) | frontend pronto |
 | `StatCard`, `TxRow`, `Pill` | `components/ui/` | — | pronto |
+| — (não existe no protótipo) | `Livewire\Settings\*` | `/settings/*` | frontend pronto — ver 3.6 |
 
 "frontend pronto" significa: layout, interações e formatação fiéis ao protótipo, mas lendo de
 `Support\DemoData` — os models ainda não existem. Ver 3.2 e 7.
@@ -356,6 +357,26 @@ Uma diferença deliberada em relação ao protótipo, em `Money::format()`: o pr
 `Math.abs` a todo valor e deixa só a cor comunicar o sinal, o que torna um déficit
 indistinguível de um superávit em texto. Aqui, valor negativo recebe `−`.
 
+### 3.6 Configurações do usuário
+
+O protótipo **não tem tela de configurações**: o header dele só traz avatar, nome e "Sair".
+As telas em `/settings` vieram do starter kit e foram reescritas na linguagem visual do app —
+navegação à esquerda, `x-ui.panel` à direita, tudo em pt-BR.
+
+| Tela | Conteúdo |
+|---|---|
+| `/settings/profile` | resumo da conta (avatar, vínculo com Google, data de cadastro), nome e e-mail, e a zona de exclusão |
+| `/settings/security` | troca de senha e verificação em duas etapas (TOTP + códigos de recuperação) |
+
+**A tela de Aparência foi removida.** O starter kit trazia um seletor claro/escuro/sistema, mas
+o app é escuro por construção: o `<html>` tem `class="dark"` fixo e o bloco `@theme` do
+`app.css` define uma paleta só. O seletor mudava o estado do Flux e nada acontecia na tela.
+Um controle que não faz nada é pior que a ausência dele. Se um tema claro entrar no escopo, é
+projetar a paleta clara primeiro — aí a tela volta.
+
+Nota sobre o `password.confirm`: `/settings/security` fica atrás dele, então o primeiro acesso
+na sessão passa por `/user/confirm-password`. É do Fortify, não nosso.
+
 ---
 
 ## 4. Convenções de nome
@@ -507,7 +528,7 @@ Pest 5. A suíte espelha a aplicação:
 estilo para os nossos. A suíte hoje: **69 testes, 198 asserções**.
 
 O `Livewire::test()` renderiza o componente, não o layout — por isso existe também o
-`FinanceScreensTest`, que faz `GET` nas três rotas e verifica a página inteira. É o que pega
+`FinanceScreensTest`, que faz `GET` nas cinco rotas e verifica a página inteira. É o que pega
 erro de Blade no layout, na sidebar e nos componentes de `ui/`.
 
 Além do Pest, o `composer ci:check` roda Pint e Larastan no **nível 7**. Duas consequências
@@ -543,10 +564,11 @@ Toda factory em `database/factories/`, uma por model.
 
 - **Models de `Category`, `Transaction` e `Budget`.** É o próximo passo natural: as três telas
   estão prontas e esperando. Ver a tabela de troca em 3.2.
-- Telas de Metas e Relatórios — hoje desabilitadas na navegação.
 - Se `Goal.current` é campo ou soma de aportes (`goal_contributions`).
 - Driver de e-mail para o reset de senha funcionar fora do ambiente local.
 - Manter ou remover o 2FA — veio de brinde e ainda não foi decidido. Os passkeys já saíram.
+- Tema claro: hoje o app é escuro por construção e a tela de Aparência saiu por isso. Voltar
+  exige projetar a paleta clara no `@theme` do `app.css` — ver 3.6.
 - Traduzir a interface do starter kit para pt-BR (`lang/pt_BR/`). As telas do domínio já
   nasceram em português, com as strings direto na Blade; quando o `lang/pt_BR/` existir, elas
   passam por `__()` junto com o resto.

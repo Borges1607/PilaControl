@@ -114,7 +114,7 @@
                         <flux:menu.separator />
 
                         <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
-                            {{ __('Settings') }}
+                            Configurações
                         </flux:menu.item>
                     </flux:menu>
                 </flux:dropdown>

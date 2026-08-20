@@ -16,7 +16,29 @@ class ProfileUpdateTest extends TestCase
     {
         $this->actingAs($user = User::factory()->create());
 
-        $this->get('/settings/profile')->assertOk();
+        $this->get('/settings/profile')
+            ->assertOk()
+            ->assertSee('Configurações', escape: false)
+            ->assertSee('Dados pessoais')
+            ->assertSee('Excluir conta')
+            ->assertSee($user->email);
+    }
+
+    public function test_appearance_screen_is_gone(): void
+    {
+        // O app é escuro por construção: não existe paleta clara para alternar.
+        $this->actingAs(User::factory()->create());
+
+        $this->get('/settings/appearance')->assertNotFound();
+    }
+
+    public function test_google_badge_only_shows_for_linked_accounts(): void
+    {
+        $this->actingAs(User::factory()->create());
+        $this->get('/settings/profile')->assertDontSee('Conectada ao Google');
+
+        $this->actingAs(User::factory()->create(['google_id' => '1234567890']));
+        $this->get('/settings/profile')->assertSee('Conectada ao Google');
     }
 
     public function test_profile_information_can_be_updated(): void
