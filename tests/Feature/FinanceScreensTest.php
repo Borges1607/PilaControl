@@ -15,7 +15,10 @@ it('renderiza a página completa para o usuário logado', function (string $rout
         ->assertOk()
         ->assertSee($heading, escape: false)
         ->assertSee('Nova Transação')
-        ->assertSee('Relatórios');
+        ->assertSee('Relatórios')
+        // O modal de categorias mora no layout: aparece em toda página logada.
+        ->assertSee('Categorias')
+        ->assertSee('Nova Categoria');
 })->with([
     ['dashboard', 'Dashboard'],
     ['transactions.index', 'Transações'],

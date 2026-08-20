@@ -87,6 +87,7 @@ PilaControl/
 │   │   └── Results/                 # objetos readonly de retorno — ver 7
 │   │
 │   └── Support/
+│       ├── CategoryPresets.php      # ícones e cores sugeridos no cadastro
 │       ├── Money.php                # value object de valor monetário
 │       ├── MonthLabel.php           # rótulos de mês e data — ver 3.5
 │       ├── DemoData.php             # PROVISÓRIO: dados do protótipo — ver 3.2
@@ -163,7 +164,7 @@ PilaControl/
 | `GoalsView` | `Livewire\Goals\Index` | `/metas` | frontend pronto |
 | `ReportsView` | `Livewire\Reports\Index` | `/relatorios` | frontend pronto |
 | `TransactionModal` | dentro de `Livewire\Transactions\Index` | — (modal) | frontend pronto |
-| `CategoriesModal` | `Livewire\Categories\CategoriesModal` | — (modal) | a fazer |
+| `CategoriesModal` | `Livewire\Categories\CategoriesModal` | — (modal) | frontend pronto |
 | `StatCard`, `TxRow`, `Pill` | `components/ui/` | — | pronto |
 
 "frontend pronto" significa: layout, interações e formatação fiéis ao protótipo, mas lendo de
@@ -172,8 +173,9 @@ PilaControl/
 `/` continua sendo a `welcome` do starter kit; o dashboard mora em `/dashboard` porque é para
 lá que o Fortify redireciona depois do login, e é o que os testes de autenticação esperam.
 
-O botão Categorias no rodapé da sidebar segue desabilitado ("Em breve") — presente no
-visual, sem link morto. É o último item da navegação ainda por fazer.
+O modal de categorias é montado no `layouts/app/sidebar.blade.php`, não numa tela: o gatilho
+é o botão no rodapé da sidebar, e por isso ele existe em toda página logada. Nenhum item da
+navegação ficou desabilitado.
 
 Registro de rota no Livewire 4 usa o helper novo:
 
@@ -197,7 +199,7 @@ app/Livewire/Transactions/TransactionModal.php → views/livewire/transactions/t
 | Tipo TS (`src/data.ts`) | Model | Tabela | Status |
 |---|---|---|---|
 | `User` (`src/auth.ts`) | `User` | `users` | pronto |
-| `Category` | `Category` | `categories` | a fazer |
+| `Category` | `Category` | `categories` | a fazer (hoje `Support\Demo\Category`) |
 | `Transaction` | `Transaction` | `transactions` | a fazer |
 | `Budget` | `Budget` | `budgets` | a fazer |
 | `Goal` | `Goal` | `goals` | a fazer (hoje `Support\Demo\Goal`) |
@@ -222,8 +224,11 @@ tabelas vão ter (`amount_cents`, `date`, `type`, `category`). É um único pont
 | views, `components/ui/`, `app/Queries/Results/` | nada |
 
 O estado de escrita também é provisório: `Budgets\Index::$limits`,
-`Transactions\Index::$added`/`$removed` e `Goals\Index::$added`/`$removed`/`$deposits`
-guardam as alterações no próprio componente, e desaparecem ao sair da página. Somem junto com
+`Transactions\Index::$added`/`$removed`, `Goals\Index::$added`/`$removed`/`$deposits` e
+`Categories\CategoriesModal::$added`/`$removed` guardam as alterações no próprio componente, e
+desaparecem ao sair da página. Uma consequência visível: categoria criada no modal ainda não
+aparece no seletor da tela de Transações, porque cada componente lê o registro por conta
+própria. Some quando a tabela `categories` existir. Somem junto com
 o `DemoData`, dando lugar às Actions de 3.3.
 
 **Armadilha de nome no Livewire.** O framework trata `hydrate{Propriedade}` como hook de ciclo
@@ -336,6 +341,11 @@ viram helpers globais:
 - `monthLabel`, `fmtDate`, `currentMonth` → `Support\MonthLabel` (`short()`, `long()`, `date()`,
   `weekdayDate()`, `key()`, `currentKey()`).
 - `daysUntil` → método no model `Goal` (`$goal->daysRemaining()`), quando o model existir.
+
+`Support\CategoryPresets` segue a mesma lógica: as dezesseis cores e os trinta e seis ícones
+do cadastro de categoria são **conteúdo do design**, não dado de vitrine. Por isso não moram
+no `DemoData` — eles sobrevivem à criação da tabela `categories`, que o `DemoData` não. O
+campo continua aceitando qualquer emoji e qualquer cor; as listas são só o caminho rápido.
 
 `MonthLabel` existe em vez de `Carbon` direto na Blade por dois motivos: as listas de filtro
 precisam dos rótulos em PHP, e as abreviações do protótipo ("Ago/26") não batem com as do

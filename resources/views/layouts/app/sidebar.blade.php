@@ -60,16 +60,15 @@
                     Nova Transação
                 </flux:button>
 
-                <flux:tooltip content="Em breve" position="top">
+                <flux:modal.trigger name="categorias">
                     <flux:button
                         size="sm"
                         icon="tag"
-                        disabled
-                        class="w-full border-border! bg-transparent! text-muted-foreground!"
+                        class="w-full border-border! bg-transparent! text-muted-foreground! hover:text-foreground!"
                     >
                         Categorias
                     </flux:button>
-                </flux:tooltip>
+                </flux:modal.trigger>
             </div>
         </flux:sidebar>
 
@@ -136,6 +135,9 @@
         </flux:header>
 
         {{ $slot }}
+
+        {{-- Mora no layout porque o gatilho é o botão do rodapé da sidebar. --}}
+        <livewire:categories.categories-modal />
 
         @persist('toast')
             <flux:toast.group>
