@@ -161,7 +161,7 @@ PilaControl/
 | `TransactionsView` | `Livewire\Transactions\Index` | `/transacoes` | frontend pronto |
 | `BudgetView` | `Livewire\Budgets\Index` | `/orcamento` | frontend pronto |
 | `GoalsView` | `Livewire\Goals\Index` | `/metas` | frontend pronto |
-| `ReportsView` | `Livewire\Reports\Index` | `/relatorios` | a fazer |
+| `ReportsView` | `Livewire\Reports\Index` | `/relatorios` | frontend pronto |
 | `TransactionModal` | dentro de `Livewire\Transactions\Index` | — (modal) | frontend pronto |
 | `CategoriesModal` | `Livewire\Categories\CategoriesModal` | — (modal) | a fazer |
 | `StatCard`, `TxRow`, `Pill` | `components/ui/` | — | pronto |
@@ -172,8 +172,8 @@ PilaControl/
 `/` continua sendo a `welcome` do starter kit; o dashboard mora em `/dashboard` porque é para
 lá que o Fortify redireciona depois do login, e é o que os testes de autenticação esperam.
 
-Relatórios aparece na navegação como item desabilitado ("Em breve"), assim como o botão
-Categorias no rodapé da sidebar — presentes no visual, sem link morto.
+O botão Categorias no rodapé da sidebar segue desabilitado ("Em breve") — presente no
+visual, sem link morto. É o último item da navegação ainda por fazer.
 
 Registro de rota no Livewire 4 usa o helper novo:
 
@@ -466,6 +466,11 @@ resources/views/components/ui/
 - A Blade passa **nome de token** (`'income'`, `'expense'`, `'info'`), não cor — o `chart.js`
   resolve pelo tema. Uma cor literal também passa: é o caso da cor da categoria, que vem do
   registro (`Category.color`) e não da paleta.
+- **Gráfico que muda de dados sem recarregar a página precisa de `name`.** Como o canvas está
+  sob `wire:ignore`, o Livewire não o redesenha: o componente chama
+  `$this->dispatch('chart:data', name: ..., labels: ..., series: ...)` e cada canvas aceita só
+  o evento que traz o seu próprio nome. É o que os Relatórios fazem ao trocar o período; o
+  Dashboard não passa `name` porque os dados dele não mudam depois de montados.
 - Valores vão para o JS **em reais** (`Money::toReais()`), não em centavos. É a única coisa que
   sai do domínio em ponto flutuante, e serve só para desenhar.
 - O container do canvas precisa de `wire:ignore` — o Livewire não pode re-renderizar por cima

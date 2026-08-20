@@ -18,4 +18,9 @@ final readonly class MonthPoint
         public Money $income,
         public Money $expense,
     ) {}
+
+    public function balance(): Money
+    {
+        return $this->income->minus($this->expense);
+    }
 }
