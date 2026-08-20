@@ -11,7 +11,9 @@ use App\Support\Money;
 use Illuminate\Support\Collection;
 
 /**
- * Gasto por categoria num mês, da maior para a menor.
+ * Gasto por categoria, da maior para a menor.
+ *
+ * Dois recortes: um mês só (dashboard) ou um período aberto (relatórios).
  */
 final class SpendingByCategory
 {
@@ -22,10 +24,34 @@ final class SpendingByCategory
      */
     public function handle(Collection $transactions, string $month, ?int $limit = null): Collection
     {
-        $expenses = $transactions->filter(
-            fn (Transaction $tx): bool => $tx->type === TransactionType::Expense
-                && $tx->monthKey() === $month
+        return $this->rank(
+            $transactions->filter(fn (Transaction $tx): bool => $tx->monthKey() === $month),
+            $limit,
         );
+    }
+
+    /**
+     * Mesmo ranking, para todos os meses a partir de `$since`.
+     *
+     * @param  Collection<int, Transaction>  $transactions
+     * @param  string  $since  chave "Y-m" inclusiva
+     * @return Collection<int, CategorySpending>
+     */
+    public function since(Collection $transactions, string $since, ?int $limit = null): Collection
+    {
+        return $this->rank(
+            $transactions->filter(fn (Transaction $tx): bool => $tx->monthKey() >= $since),
+            $limit,
+        );
+    }
+
+    /**
+     * @param  Collection<int, Transaction>  $scope  já recortado no período
+     * @return Collection<int, CategorySpending>
+     */
+    private function rank(Collection $scope, ?int $limit): Collection
+    {
+        $expenses = $scope->filter(fn (Transaction $tx): bool => $tx->type === TransactionType::Expense);
 
         $total = Money::fromCents((int) $expenses->sum('amount_cents'));
 

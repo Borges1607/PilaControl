@@ -138,6 +138,14 @@ export default function registerChart() {
                 // O Livewire nunca re-renderiza este bloco (wire:ignore); a atualização
                 // de dados chega por evento e é repassada para o próprio Chart.js.
                 this.$el.addEventListener('chart:data', (event) => this.replace(event.detail))
+
+                // Mesmo caminho, vindo do servidor: `$this->dispatch('chart:data', ...)`
+                // cai na window, então o gráfico só aceita o que traz o seu próprio nome.
+                window.addEventListener('chart:data', (event) => {
+                    if (! config.name || event.detail?.name !== config.name) return
+
+                    this.replace(event.detail)
+                })
             },
 
             replace({ labels, series }) {
@@ -145,10 +153,19 @@ export default function registerChart() {
                     return
                 }
 
+                const theme = chartTheme()
+
                 this.instance.data.labels = labels
                 series.forEach((set, index) => {
-                    if (this.instance.data.datasets[index]) {
-                        this.instance.data.datasets[index].data = set.data
+                    const dataset = this.instance.data.datasets[index]
+
+                    if (! dataset) return
+
+                    dataset.data = set.data
+
+                    // O rosca pinta fatia a fatia: trocar o período troca as categorias.
+                    if (set.colors) {
+                        dataset.backgroundColor = set.colors.map((value) => color(value, theme))
                     }
                 })
                 this.instance.update()

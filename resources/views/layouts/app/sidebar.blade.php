@@ -4,8 +4,8 @@
         ['label' => 'Dashboard', 'icon' => 'squares-2x2', 'route' => 'dashboard'],
         ['label' => 'Transações', 'icon' => 'arrows-right-left', 'route' => 'transactions.index'],
         ['label' => 'Orçamento', 'icon' => 'rectangle-group', 'route' => 'budgets.index'],
-        ['label' => 'Metas', 'icon' => 'flag', 'route' => null],
-        ['label' => 'Relatórios', 'icon' => 'chart-bar', 'route' => null],
+        ['label' => 'Metas', 'icon' => 'flag', 'route' => 'goals.index'],
+        ['label' => 'Relatórios', 'icon' => 'chart-bar', 'route' => 'reports.index'],
     ];
 @endphp
 <!DOCTYPE html>
@@ -60,16 +60,15 @@
                     Nova Transação
                 </flux:button>
 
-                <flux:tooltip content="Em breve" position="top">
+                <flux:modal.trigger name="categorias">
                     <flux:button
                         size="sm"
                         icon="tag"
-                        disabled
-                        class="w-full border-border! bg-transparent! text-muted-foreground!"
+                        class="w-full border-border! bg-transparent! text-muted-foreground! hover:text-foreground!"
                     >
                         Categorias
                     </flux:button>
-                </flux:tooltip>
+                </flux:modal.trigger>
             </div>
         </flux:sidebar>
 
@@ -115,7 +114,7 @@
                         <flux:menu.separator />
 
                         <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
-                            {{ __('Settings') }}
+                            Configurações
                         </flux:menu.item>
                     </flux:menu>
                 </flux:dropdown>
@@ -136,6 +135,9 @@
         </flux:header>
 
         {{ $slot }}
+
+        {{-- Mora no layout porque o gatilho é o botão do rodapé da sidebar. --}}
+        <livewire:categories.categories-modal />
 
         @persist('toast')
             <flux:toast.group>

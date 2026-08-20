@@ -1,31 +1,39 @@
-<x-layouts::auth :title="__('Forgot password')">
-    <div class="flex flex-col gap-6">
-        <x-auth-header :title="__('Forgot password')" :description="__('Enter your email to receive a password reset link')" />
+<x-layouts::auth title="Recuperar senha" subtitle="Recuperar senha">
+    <x-auth-card>
+        <x-auth-session-status :status="session('status')" />
 
-        <!-- Session Status -->
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        <p class="text-xs text-muted-foreground">
+            Informe seu e-mail cadastrado e enviaremos um link para você redefinir a senha.
+        </p>
 
-        <form method="POST" action="{{ route('password.email') }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('password.email') }}" class="flex flex-col gap-4">
             @csrf
 
-            <!-- Email Address -->
             <flux:input
                 name="email"
-                :label="__('Email address')"
+                label="E-mail"
+                :value="old('email')"
                 type="email"
                 required
                 autofocus
-                placeholder="email@example.com"
+                autocomplete="email"
+                placeholder="voce@email.com"
             />
 
-            <flux:button variant="primary" type="submit" class="w-full" data-test="email-password-reset-link-button">
-                {{ __('Email password reset link') }}
+            {{-- Azul, não verde: no protótipo as telas de recuperação usam o `--accent`. --}}
+            <flux:button
+                type="submit"
+                class="w-full border-info! bg-info! py-2.5! font-semibold! text-foreground!"
+                data-test="email-password-reset-link-button"
+            >
+                Enviar link
             </flux:button>
         </form>
+    </x-auth-card>
 
-        <div class="space-x-1 rtl:space-x-reverse text-center text-sm text-zinc-400">
-            <span>{{ __('Or, return to') }}</span>
-            <flux:link :href="route('login')" wire:navigate>{{ __('log in') }}</flux:link>
-        </div>
-    </div>
+    <p class="text-center text-xs">
+        <flux:link :href="route('login')" wire:navigate class="text-info! no-underline! hover:underline!">
+            ← Voltar ao login
+        </flux:link>
+    </p>
 </x-layouts::auth>

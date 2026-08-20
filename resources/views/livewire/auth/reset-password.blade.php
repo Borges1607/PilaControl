@@ -1,54 +1,63 @@
-<x-layouts::auth :title="__('Reset password')">
-    <div class="flex flex-col gap-6">
-        <x-auth-header :title="__('Reset password')" :description="__('Please enter your new password below')" />
+<x-layouts::auth title="Redefinir senha" subtitle="Escolha uma nova senha">
+    <x-auth-card>
+        <x-auth-session-status :status="session('status')" />
 
-        <!-- Session Status -->
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        <p class="text-xs text-muted-foreground">
+            O link é válido por 60 minutos. Escolha a nova senha da sua conta abaixo.
+        </p>
 
-        <form method="POST" action="{{ route('password.update') }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('password.update') }}" class="flex flex-col gap-4">
             @csrf
-            <!-- Token -->
+
             <input type="hidden" name="token" value="{{ request()->route('token') }}">
 
-            <!-- Email Address -->
             <flux:input
                 name="email"
-                value="{{ request('email') }}"
-                :label="__('Email')"
+                label="E-mail"
+                :value="request('email')"
                 type="email"
                 required
                 autocomplete="email"
+                placeholder="voce@email.com"
             />
 
-            <!-- Password -->
             <flux:input
                 name="password"
-                :label="__('Password')"
+                label="Nova senha"
                 type="password"
                 required
+                autofocus
                 autocomplete="new-password"
-                :placeholder="__('Password')"
+                placeholder="Mínimo 8 caracteres"
                 passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
                 viewable
             />
 
-            <!-- Confirm Password -->
             <flux:input
                 name="password_confirmation"
-                :label="__('Confirm password')"
+                label="Confirmar senha"
                 type="password"
                 required
                 autocomplete="new-password"
-                :placeholder="__('Confirm password')"
+                placeholder="Repita a senha"
                 passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
                 viewable
             />
 
-            <div class="flex items-center justify-end">
-                <flux:button type="submit" variant="primary" class="w-full" data-test="reset-password-button">
-                    {{ __('Reset password') }}
-                </flux:button>
-            </div>
+            {{-- Azul, não verde: segundo passo do mesmo fluxo de recuperação do `forgot-password`. --}}
+            <flux:button
+                type="submit"
+                class="w-full border-info! bg-info! py-2.5! font-semibold! text-foreground!"
+                data-test="reset-password-button"
+            >
+                Redefinir senha
+            </flux:button>
         </form>
-    </div>
+    </x-auth-card>
+
+    <p class="text-center text-xs">
+        <flux:link :href="route('login')" wire:navigate class="text-info! no-underline! hover:underline!">
+            ← Voltar ao login
+        </flux:link>
+    </p>
 </x-layouts::auth>

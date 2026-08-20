@@ -1,69 +1,74 @@
-<x-layouts::auth :title="__('Register')">
-    <div class="flex flex-col gap-6">
-        <x-auth-header :title="__('Create an account')" :description="__('Enter your details below to create your account')" />
+<x-layouts::auth title="Criar conta" subtitle="Crie sua conta gratuita">
+    <x-auth-card>
+        <x-auth-session-status :status="session('status')" />
 
-        <!-- Session Status -->
-        <x-auth-session-status class="text-center" :status="session('status')" />
+        @error('google')
+            <x-ui.alert>{{ $message }}</x-ui.alert>
+        @enderror
 
-        <form method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-6">
+        <x-google-button label="Cadastrar com o Google" separator="ou cadastre com e-mail" />
+
+        <form method="POST" action="{{ route('register.store') }}" class="flex flex-col gap-4">
             @csrf
-            <!-- Name -->
+
             <flux:input
                 name="name"
-                :label="__('Name')"
+                label="Nome"
                 :value="old('name')"
                 type="text"
                 required
                 autofocus
                 autocomplete="name"
-                :placeholder="__('Full name')"
+                placeholder="Seu nome"
             />
 
-            <!-- Email Address -->
             <flux:input
                 name="email"
-                :label="__('Email address')"
+                label="E-mail"
                 :value="old('email')"
                 type="email"
                 required
                 autocomplete="email"
-                placeholder="email@example.com"
+                placeholder="voce@email.com"
             />
 
-            <!-- Password -->
             <flux:input
                 name="password"
-                :label="__('Password')"
+                label="Senha"
                 type="password"
                 required
                 autocomplete="new-password"
-                :placeholder="__('Password')"
+                placeholder="Mínimo 8 caracteres"
                 passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
                 viewable
             />
 
-            <!-- Confirm Password -->
             <flux:input
                 name="password_confirmation"
-                :label="__('Confirm password')"
+                label="Confirmar senha"
                 type="password"
                 required
                 autocomplete="new-password"
-                :placeholder="__('Confirm password')"
+                placeholder="Repita a senha"
                 passwordrules="{{ \Illuminate\Validation\Rules\Password::defaults()->toPasswordRulesString() }}"
                 viewable
             />
 
-            <div class="flex items-center justify-end">
-                <flux:button type="submit" variant="primary" class="w-full" data-test="register-user-button">
-                    {{ __('Create account') }}
-                </flux:button>
-            </div>
+            <flux:button
+                variant="primary"
+                type="submit"
+                class="w-full py-2.5! font-semibold!"
+                data-test="register-user-button"
+            >
+                Criar conta
+            </flux:button>
         </form>
+    </x-auth-card>
 
-        <div class="space-x-1 rtl:space-x-reverse text-center text-sm text-zinc-600 dark:text-zinc-400">
-            <span>{{ __('Already have an account?') }}</span>
-            <flux:link :href="route('login')" wire:navigate>{{ __('Log in') }}</flux:link>
-        </div>
-    </div>
+    <p class="text-center text-xs text-muted-foreground">
+        Já tem conta?
+        <flux:link :href="route('login')" wire:navigate class="text-info! no-underline! hover:underline!">
+            Entrar
+        </flux:link>
+    </p>
 </x-layouts::auth>

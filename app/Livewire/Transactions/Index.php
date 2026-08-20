@@ -130,7 +130,7 @@ class Index extends Component
     public function all(): Collection
     {
         return DemoData::transactions()
-            ->concat($this->hydrateAdded())
+            ->concat($this->addedTransactions())
             ->reject(fn (Transaction $tx): bool => in_array($tx->id, $this->removed, true))
             ->sortByDesc(fn (Transaction $tx): string => $tx->sortKey())
             ->values();
@@ -268,9 +268,12 @@ class Index extends Component
     }
 
     /**
+     * Nome do método importa: o Livewire trata `hydrate{Propriedade}` como hook de
+     * ciclo de vida e tenta chamá-lo de fora. `hydrateAdded` colidiria com `$added`.
+     *
      * @return Collection<int, Transaction>
      */
-    private function hydrateAdded(): Collection
+    private function addedTransactions(): Collection
     {
         $categories = $this->categories;
 

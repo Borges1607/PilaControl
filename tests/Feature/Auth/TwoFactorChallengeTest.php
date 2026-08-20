@@ -38,5 +38,10 @@ class TwoFactorChallengeTest extends TestCase
             'email' => $user->email,
             'password' => 'password',
         ])->assertRedirect(route('two-factor.login'));
+
+        $this->get(route('two-factor.login'))
+            ->assertOk()
+            ->assertSee('Verificação em duas etapas')
+            ->assertSee('Usar um código de recuperação');
     }
 }

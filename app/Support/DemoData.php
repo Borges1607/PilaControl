@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Enums\CategoryType;
 use App\Enums\TransactionType;
 use App\Support\Demo\Category;
+use App\Support\Demo\Goal;
 use App\Support\Demo\Transaction;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
@@ -115,6 +116,46 @@ final class DemoData
             'shopping' => Money::fromReais(500)->cents,
             'bills' => Money::fromReais(350)->cents,
         ];
+    }
+
+    /**
+     * Metas do protótipo. Os prazos acompanham o ano corrente, como no `INITIAL_GOALS`.
+     *
+     * @return Collection<int, Goal>
+     */
+    public static function goals(): Collection
+    {
+        $year = (int) Date::now()->format('Y');
+
+        return collect([
+            self::goal('g1', 'Fundo de Emergência', '🛡️', 30000, 18500, ($year + 1).'-03-01'),
+            self::goal('g2', 'Viagem Europa', '✈️', 15000, 4200, ($year + 1).'-07-01'),
+            self::goal('g3', 'Notebook Novo', '💻', 6000, 3800, $year.'-11-01'),
+            self::goal('g4', 'Reserva Investimentos', '📈', 50000, 22000, ($year + 2).'-01-01'),
+        ]);
+    }
+
+    /**
+     * @param  float  $target  valor alvo em reais
+     * @param  float  $current  valor já guardado, em reais
+     * @param  string  $deadline  data "Y-m-d"
+     */
+    private static function goal(
+        string $id,
+        string $name,
+        string $icon,
+        float $target,
+        float $current,
+        string $deadline,
+    ): Goal {
+        return new Goal(
+            id: $id,
+            name: $name,
+            icon: $icon,
+            target_cents: Money::fromReais($target)->cents,
+            current_cents: Money::fromReais($current)->cents,
+            deadline: Date::parse($deadline)->startOfDay(),
+        );
     }
 
     /**

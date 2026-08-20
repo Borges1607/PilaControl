@@ -18,11 +18,15 @@ final class BalanceTimeline
 {
     /**
      * @param  Collection<int, Transaction>  $transactions
+     * @param  string|null  $since  chave "Y-m" inclusiva; null traz a série inteira
      * @return Collection<int, MonthPoint>
      */
-    public function handle(Collection $transactions): Collection
+    public function handle(Collection $transactions, ?string $since = null): Collection
     {
         return $transactions
+            ->when($since !== null, fn (Collection $rows): Collection => $rows->filter(
+                fn (Transaction $tx): bool => $tx->monthKey() >= $since
+            ))
             ->groupBy(fn (Transaction $tx): string => $tx->monthKey())
             ->sortKeys()
             ->map(fn (Collection $group, string $month): MonthPoint => new MonthPoint(
