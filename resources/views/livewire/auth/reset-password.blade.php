@@ -1,11 +1,11 @@
 <x-layouts::auth :title="__('Reset password')">
-    <div class="flex flex-col gap-6">
+    <x-auth-card>
         <x-auth-header :title="__('Reset password')" :description="__('Please enter your new password below')" />
 
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
 
-        <form method="POST" action="{{ route('password.update') }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('password.update') }}" class="flex flex-col gap-4">
             @csrf
             <!-- Token -->
             <input type="hidden" name="token" value="{{ request()->route('token') }}">
@@ -50,5 +50,5 @@
                 </flux:button>
             </div>
         </form>
-    </div>
+    </x-auth-card>
 </x-layouts::auth>

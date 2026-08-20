@@ -1,5 +1,5 @@
 <x-layouts::auth :title="__('Two-factor authentication')">
-    <div class="flex flex-col gap-6">
+    <x-auth-card>
         <div
             class="relative w-full h-auto"
             x-cloak
@@ -97,5 +97,5 @@
                 </div>
             </form>
         </div>
-    </div>
+    </x-auth-card>
 </x-layouts::auth>

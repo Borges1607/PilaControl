@@ -21,7 +21,10 @@ class RegistrationTest extends TestCase
     {
         $response = $this->get(route('register'));
 
-        $response->assertOk();
+        $response->assertOk()
+            ->assertSee('Crie sua conta gratuita')
+            ->assertSee('Criar conta')
+            ->assertSee('Já tem conta?', escape: false);
     }
 
     public function test_new_users_can_register(): void

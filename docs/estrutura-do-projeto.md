@@ -58,7 +58,8 @@ PilaControl/
 │   │   ├── CategoryType.php         # income | expense | both
 │   │   └── TransactionType.php      # income | expense
 │   │
-│   ├── Http/Controllers/            # mínimo: só o que Livewire não cobre (export, webhook)
+│   ├── Http/Controllers/            # mínimo: só o que Livewire não cobre
+│   │   └── Auth/GoogleController.php   # OAuth2 do Google — ver 3.4
 │   │
 │   ├── Livewire/
 │   │   ├── Actions/Logout.php
@@ -95,7 +96,7 @@ PilaControl/
 │
 ├── database/
 │   ├── factories/
-│   ├── migrations/                  # users, cache, jobs, passkeys, two_factor
+│   ├── migrations/                  # users, cache, jobs, two_factor, google
 │   ├── seeders/                     # + categorias padrão vêm daqui
 │   └── database.sqlite              # ignorado pelo git
 │
@@ -106,7 +107,6 @@ PilaControl/
 │   ├── css/app.css                  # Tailwind v4 + Flux + design tokens
 │   ├── js/
 │   │   ├── app.js                   # registra o componente Alpine do gráfico
-│   │   ├── passkeys.js
 │   │   └── charts/                  # Chart.js isolado aqui — ver 5.3
 │   └── views/
 │       ├── components/              # app-logo, auth-header, settings/layout…
@@ -151,10 +151,11 @@ PilaControl/
 
 | Tela do protótipo | Onde vive | Rota | Status |
 |---|---|---|---|
-| `AuthScreen` (login) | `views/livewire/auth/login.blade.php` | `/login` | pronto (Fortify) |
-| `AuthScreen` (cadastro) | `views/livewire/auth/register.blade.php` | `/register` | pronto (Fortify) |
-| `AuthScreen` (esqueci senha) | `views/livewire/auth/forgot-password.blade.php` | `/forgot-password` | pronto (Fortify) |
+| `AuthScreen` (login) | `views/livewire/auth/login.blade.php` | `/login` | frontend pronto |
+| `AuthScreen` (cadastro) | `views/livewire/auth/register.blade.php` | `/register` | frontend pronto |
+| `AuthScreen` (esqueci senha) | `views/livewire/auth/forgot-password.blade.php` | `/forgot-password` | frontend pronto |
 | `AuthScreen` (redefinir) | `views/livewire/auth/reset-password.blade.php` | `/reset-password/{token}` | pronto (Fortify) |
+| — | `views/livewire/auth/create-password.blade.php` | `/definir-senha` | primeira senha de quem veio do Google |
 | — | `views/livewire/auth/two-factor-challenge.blade.php` | — | extra do kit |
 | `Dashboard` | `Livewire\Dashboard\Index` | `/dashboard` | frontend pronto |
 | `TransactionsView` | `Livewire\Transactions\Index` | `/transacoes` | frontend pronto |
@@ -256,12 +257,58 @@ sobrevive. O starter kit trouxe **Laravel Fortify**, que já resolve tudo:
 | Uso único | não | sim, token apagado no consumo |
 | Rate limit | nenhum | throttle do Fortify |
 | 2FA | não existia | incluso (TOTP + códigos de recuperação) |
-| Passkeys | não existia | incluso (`@laravel/passkeys`) |
 
 **Detalhe importante para não se confundir depois:** os arquivos em
 `resources/views/livewire/auth/` **não são componentes Livewire**, apesar do caminho. São
 Blade puro com `<form method="POST">` apontando para rotas do Fortify (`login.store` etc.).
 Quem processa é o Fortify no servidor. Não existe classe em `app/Livewire/Auth/`.
+
+A casca das telas deslogadas é o `layouts/auth.blade.php`: fundo escuro com a malha de
+pontos e o brilho verde do `AuthScreen`, marca `₢` e subtítulo por tela (`:subtitle`). O
+cartão é o `<x-auth-card>`. Os três layouts do starter kit (`auth/card`, `auth/simple`,
+`auth/split`) ficaram sem uso — entram na limpeza pendente.
+
+A única diferença de estilo entre o `Field` do app e o `InputField` do `AuthScreen` é o label
+em caixa alta. Vale só dentro da casca de auth, por uma regra no fim do `app.css` presa ao
+atributo `data-auth`.
+
+### 3.4.1 Login com Google
+
+O botão da tela de login abre o fluxo *authorization code* do Google, falado direto por HTTP
+em `Http\Controllers\Auth\GoogleController` — sem `laravel/socialite`, que ainda exige Guzzle 7
+e obrigaria a rebaixar o Guzzle 8 do projeto inteiro por causa de um botão.
+
+| Peça | Onde |
+|---|---|
+| Credenciais | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` no `.env`; leitura em `config/services.php` |
+| Rotas | `google.redirect` e `google.callback`, em `routes/web.php`, sob `guest` |
+| Botão | `components/google-button.blade.php` |
+| Colunas | `users.google_id` (única), `users.avatar_url`; `users.password` virou anulável |
+
+Três detalhes que não são negociáveis:
+
+- O `state` aleatório vai para a sessão na ida e é conferido com `hash_equals` na volta. É a
+  defesa de CSRF do OAuth2 — sem ela o callback aceita retorno forjado.
+- Só entra conta com `email_verified` do Google. É isso que torna seguro ligar a conta Google
+  a um usuário já cadastrado pelo mesmo e-mail.
+- Sem credenciais no `.env`, as duas rotas devolvem 404 e o botão não vai para produção.
+  Em `local` ele aparece desabilitado dizendo o que falta: sumir calado faz quem está
+  desenvolvendo achar que a tela é que não foi feita.
+
+Se o Socialite passar a aceitar Guzzle 8, a classe some e vira `Socialite::driver('google')`.
+As colunas em `users` continuam as mesmas.
+
+**Primeira senha.** O Google não passa senha, então a conta nasce com `password` nulo — e sem
+senha o usuário fica preso: não entra por e-mail, e Configurações › Segurança pede a senha
+atual para trocar. O `Middleware\EnsurePasswordIsSet` (alias `password.set`, aplicado aos
+grupos autenticados de `web.php` e `settings.php`) segura essa conta em `/definir-senha` até
+ela escolher uma. Depois disso os dois caminhos de entrada funcionam.
+
+`Auth\CreatePasswordController` não é o reset do Fortify: ali existe senha e token de e-mail
+no meio; aqui a sessão já está aberta e o campo está nulo — só há o que preencher.
+
+**Passkeys foram removidos** (a pedido): saíram o `Features::passkeys()` do Fortify, a seção da
+tela de Segurança, as rotas, o `@laravel/passkeys`, o `passkeys.js` e a tabela.
 
 Onde mexer, quando for o caso:
 
@@ -336,8 +383,9 @@ tests/Feature/Livewire/Transactions/TransactionModalTest.php
   publicou alguns ícones e o `navlist/group`. Só publicamos o que precisa mudar.
 - **Componentes próprios** — `resources/views/components/ui/`. O que o Flux não cobre e se
   repete: `panel` (card com cabeçalho em caixa alta), `stat-card`, `category-pill`, `meter`
-  (barra com cor por instância), `tx-table` (lista de lançamentos sobre `flux:table`) e
-  `chart`.
+  (barra com cor por instância), `tx-table` (lista de lançamentos sobre `flux:table`),
+  `chart` e `alert` (o `Alert` do protótipo — o `flux:callout` só aceita cores nomeadas
+  do Flux, mesma razão do `meter`).
 - **Design tokens** — `resources/css/app.css`, no bloco `@theme`, com os mesmos nomes
   semânticos do protótipo (`background`, `card`, `secondary`, `muted-foreground`, `border`,
   `income`, `expense`). Nenhum hex solto em Blade — a única cor literal nas views é a de
@@ -460,7 +508,7 @@ Toda factory em `database/factories/`, uma por model.
 |---|---|
 | Organização do domínio | Laravel padrão + `app/Actions` |
 | Starter kit | Livewire com class components |
-| Autenticação | Fortify (veio pronto, com 2FA e passkeys) |
+| Autenticação | Fortify + login com Google; passkeys removidos |
 | UI | Flux free — sem componentes Pro |
 | Gráficos | Chart.js isolado em `resources/js/charts/` |
 | Banco | SQLite |
@@ -476,7 +524,7 @@ Toda factory em `database/factories/`, uma por model.
 - Telas de Metas e Relatórios — hoje desabilitadas na navegação.
 - Se `Goal.current` é campo ou soma de aportes (`goal_contributions`).
 - Driver de e-mail para o reset de senha funcionar fora do ambiente local.
-- Manter ou remover 2FA e passkeys — vieram de brinde e ainda não foram decididos.
+- Manter ou remover o 2FA — veio de brinde e ainda não foi decidido. Os passkeys já saíram.
 - Traduzir a interface do starter kit para pt-BR (`lang/pt_BR/`). As telas do domínio já
   nasceram em português, com as strings direto na Blade; quando o `lang/pt_BR/` existir, elas
   passam por `__()` junto com o resto.
@@ -486,6 +534,8 @@ Toda factory em `database/factories/`, uma por model.
 
 - `resources/views/welcome.blade.php` é placeholder do kit. O `dashboard.blade.php` já saiu,
   substituído pelo componente Livewire.
+- `layouts/auth/card.blade.php`, `layouts/auth/simple.blade.php` e `layouts/auth/split.blade.php`
+  ficaram sem uso quando o `layouts/auth.blade.php` virou a casca própria.
 - `components/placeholder-pattern.blade.php` e `components/desktop-user-menu.blade.php`
   ficaram sem uso quando o layout foi reescrito.
 - `app/Support/DemoData.php` e `app/Support/Demo/` — provisórios por construção, ver 3.2.

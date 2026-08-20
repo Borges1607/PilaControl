@@ -124,3 +124,12 @@ select:focus[data-flux-control] {
     border-color: var(--color-border) !important;
     color: var(--color-foreground) !important;
 }
+
+/*
+ * Telas de autenticação. O `Field` do app usa label em caixa baixa, mas o
+ * `InputField` do AuthScreen usa caixa alta — é a única diferença entre os dois,
+ * e vale só dentro da casca de auth. Campos de marcação ficam de fora.
+ */
+[data-auth] [data-flux-field]:not(:has(ui-checkbox, ui-radio)) [data-flux-label] {
+    @apply uppercase;
+}
