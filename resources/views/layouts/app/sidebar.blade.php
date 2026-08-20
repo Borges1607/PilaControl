@@ -4,7 +4,7 @@
         ['label' => 'Dashboard', 'icon' => 'squares-2x2', 'route' => 'dashboard'],
         ['label' => 'Transações', 'icon' => 'arrows-right-left', 'route' => 'transactions.index'],
         ['label' => 'Orçamento', 'icon' => 'rectangle-group', 'route' => 'budgets.index'],
-        ['label' => 'Metas', 'icon' => 'flag', 'route' => null],
+        ['label' => 'Metas', 'icon' => 'flag', 'route' => 'goals.index'],
         ['label' => 'Relatórios', 'icon' => 'chart-bar', 'route' => null],
     ];
 @endphp

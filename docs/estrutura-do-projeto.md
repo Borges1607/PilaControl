@@ -160,7 +160,7 @@ PilaControl/
 | `Dashboard` | `Livewire\Dashboard\Index` | `/dashboard` | frontend pronto |
 | `TransactionsView` | `Livewire\Transactions\Index` | `/transacoes` | frontend pronto |
 | `BudgetView` | `Livewire\Budgets\Index` | `/orcamento` | frontend pronto |
-| `GoalsView` | `Livewire\Goals\Index` | `/metas` | a fazer |
+| `GoalsView` | `Livewire\Goals\Index` | `/metas` | frontend pronto |
 | `ReportsView` | `Livewire\Reports\Index` | `/relatorios` | a fazer |
 | `TransactionModal` | dentro de `Livewire\Transactions\Index` | — (modal) | frontend pronto |
 | `CategoriesModal` | `Livewire\Categories\CategoriesModal` | — (modal) | a fazer |
@@ -172,8 +172,8 @@ PilaControl/
 `/` continua sendo a `welcome` do starter kit; o dashboard mora em `/dashboard` porque é para
 lá que o Fortify redireciona depois do login, e é o que os testes de autenticação esperam.
 
-Metas e Relatórios aparecem na navegação como itens desabilitados ("Em breve"), assim como o
-botão Categorias no rodapé da sidebar — presentes no visual, sem link morto.
+Relatórios aparece na navegação como item desabilitado ("Em breve"), assim como o botão
+Categorias no rodapé da sidebar — presentes no visual, sem link morto.
 
 Registro de rota no Livewire 4 usa o helper novo:
 
@@ -200,7 +200,7 @@ app/Livewire/Transactions/TransactionModal.php → views/livewire/transactions/t
 | `Category` | `Category` | `categories` | a fazer |
 | `Transaction` | `Transaction` | `transactions` | a fazer |
 | `Budget` | `Budget` | `budgets` | a fazer |
-| `Goal` | `Goal` | `goals` | a fazer |
+| `Goal` | `Goal` | `goals` | a fazer (hoje `Support\Demo\Goal`) |
 
 **Notas de modelagem** (a validar na fase de banco):
 
@@ -221,9 +221,16 @@ tabelas vão ter (`amount_cents`, `date`, `type`, `category`). É um único pont
 | `app/Livewire/*/Index.php` | trocar `DemoData::…` por consulta Eloquent |
 | views, `components/ui/`, `app/Queries/Results/` | nada |
 
-O estado de escrita também é provisório: `Budgets\Index::$limits` e
-`Transactions\Index::$added`/`$removed` guardam as alterações no próprio componente, e
-desaparecem ao sair da página. Somem junto com o `DemoData`, dando lugar às Actions de 3.3.
+O estado de escrita também é provisório: `Budgets\Index::$limits`,
+`Transactions\Index::$added`/`$removed` e `Goals\Index::$added`/`$removed`/`$deposits`
+guardam as alterações no próprio componente, e desaparecem ao sair da página. Somem junto com
+o `DemoData`, dando lugar às Actions de 3.3.
+
+**Armadilha de nome no Livewire.** O framework trata `hydrate{Propriedade}` como hook de ciclo
+de vida e tenta chamá-lo de fora — um método `private hydrateAdded()` ao lado de uma
+propriedade `public $added` estoura com "does not exist" na primeira ação do componente. Os
+auxiliares que montam o estado adicionado chamam-se `addedGoals()` e `addedTransactions()`
+justamente por isso.
 
 ### 3.3 Handlers do protótipo → Actions
 

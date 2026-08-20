@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\CreatePasswordController;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Livewire\Budgets;
 use App\Livewire\Dashboard;
+use App\Livewire\Goals;
 use App\Livewire\Transactions;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +24,7 @@ Route::middleware(['auth', 'verified', 'password.set'])->group(function () {
     Route::livewire('dashboard', Dashboard\Index::class)->name('dashboard');
     Route::livewire('transacoes', Transactions\Index::class)->name('transactions.index');
     Route::livewire('orcamento', Budgets\Index::class)->name('budgets.index');
+    Route::livewire('metas', Goals\Index::class)->name('goals.index');
 });
 
 require __DIR__.'/settings.php';
