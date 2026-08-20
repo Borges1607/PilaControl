@@ -1,29 +1,33 @@
-<x-layouts::auth :title="__('Email verification')">
+<x-layouts::auth title="Verificar e-mail" subtitle="Confirme seu endereço">
     <x-auth-card>
-        <flux:text class="text-center">
-            {{ __('Please verify your email address by clicking on the link we just emailed to you.') }}
-        </flux:text>
+        <p class="text-xs text-muted-foreground">
+            Enviamos um link de verificação para o seu e-mail. Clique nele para liberar o acesso
+            à sua conta.
+        </p>
 
         @if (session('status') == 'verification-link-sent')
-            <flux:text class="text-center font-medium !dark:text-green-400 !text-green-600">
-                {{ __('A new verification link has been sent to the email address you provided during registration.') }}
-            </flux:text>
+            <x-ui.alert variant="success">Um novo link de verificação foi enviado para o seu e-mail.</x-ui.alert>
         @endif
 
-        <div class="flex flex-col items-center justify-between space-y-3">
-            <form method="POST" action="{{ route('verification.send') }}">
-                @csrf
-                <flux:button type="submit" variant="primary" class="w-full">
-                    {{ __('Resend verification email') }}
-                </flux:button>
-            </form>
+        <form method="POST" action="{{ route('verification.send') }}">
+            @csrf
 
-            <form method="POST" action="{{ route('logout') }}">
-                @csrf
-                <flux:button variant="ghost" type="submit" class="text-sm cursor-pointer" data-test="logout-button">
-                    {{ __('Log out') }}
-                </flux:button>
-            </form>
-        </div>
+            <flux:button variant="primary" type="submit" class="w-full py-2.5! font-semibold!">
+                Reenviar link
+            </flux:button>
+        </form>
     </x-auth-card>
+
+    {{-- `div`, não `p`: form dentro de parágrafo é HTML inválido e o navegador desmonta a linha. --}}
+    <div class="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+        <span>Prefere sair?</span>
+
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+
+            <button type="submit" class="text-xs text-info hover:underline" data-test="logout-button">
+                Encerrar a sessão
+            </button>
+        </form>
+    </div>
 </x-layouts::auth>
