@@ -4,42 +4,28 @@ declare(strict_types=1);
 
 namespace App\Livewire\Categories;
 
+use App\Actions\Categories\CreateCategory;
+use App\Actions\Categories\DeleteCategory;
 use App\Enums\CategoryType;
+use App\Exceptions\CategoryInUse;
+use App\Models\Category;
 use App\Support\CategoryPresets;
-use App\Support\Demo\Category;
-use App\Support\DemoData;
 use Flux\Flux;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 /**
  * Cadastro de categorias. Mora no layout, aberto pelo botão no rodapé da sidebar.
  *
- * @property-read Collection<string, Category> $categories
- * @property-read Collection<string, Category> $visible
+ * @property-read Collection<int, Category> $categories
+ * @property-read Collection<int, Category> $visible
+ * @property-read array<int, bool> $usage
  */
 class CategoriesModal extends Component
 {
-    /**
-     * Categorias criadas e removidas nesta visita.
-     *
-     * Como as demais telas, o estado vive no componente enquanto a tabela
-     * `categories` não existe — o que significa que uma categoria criada aqui
-     * ainda não aparece na tela de Transações. Ao criar o model: apagar estas
-     * duas propriedades e ligar a Actions\Categories\CreateCategory / DeleteCategory.
-     *
-     * @var array<int, array<string, string>>
-     */
-    public array $added = [];
-
-    /**
-     * @var array<int, string>
-     */
-    public array $removed = [];
-
     /**
      * Aba da listagem: "all", "income" ou "expense".
      */
@@ -60,21 +46,20 @@ class CategoriesModal extends Component
     }
 
     /**
-     * @return Collection<string, Category>
+     * O registro do usuário, indexado pelo id.
+     *
+     * @return Collection<int, Category>
      */
     #[Computed]
     public function categories(): Collection
     {
-        return DemoData::categories()
-            ->concat($this->addedCategories())
-            ->reject(fn (Category $category): bool => in_array($category->id, $this->removed, true))
-            ->keyBy(fn (Category $category): string => $category->id);
+        return Auth::user()->categories()->inRegistryOrder()->get()->keyBy('id');
     }
 
     /**
      * Categorias da aba atual. "Ambos" aparece em todas.
      *
-     * @return Collection<string, Category>
+     * @return Collection<int, Category>
      */
     #[Computed]
     public function visible(): Collection
@@ -90,11 +75,27 @@ class CategoriesModal extends Component
     }
 
     /**
-     * Categoria que veio do registro padrão não pode ser removida.
+     * Quais categorias têm lançamento, em uma consulta só — a listagem precisa
+     * saber de todas para decidir quem mostra botão de remover.
+     *
+     * @return array<int, bool>
      */
-    public function isDefault(string $categoryId): bool
+    #[Computed]
+    public function usage(): array
     {
-        return DemoData::categories()->has($categoryId);
+        return Auth::user()->transactions()
+            ->distinct()
+            ->pluck('category_id')
+            ->mapWithKeys(fn (int $id): array => [$id => true])
+            ->all();
+    }
+
+    /**
+     * Categoria em uso não se apaga: o histórico não pode perder a gaveta.
+     */
+    public function isInUse(int $categoryId): bool
+    {
+        return isset($this->usage[$categoryId]);
     }
 
     public function setTab(string $tab): void
@@ -108,13 +109,22 @@ class CategoriesModal extends Component
         unset($this->visible);
     }
 
-    public function save(): void
+    public function save(CreateCategory $createCategory): void
     {
         $validated = $this->validate([
             'formIcon' => ['required', 'string', 'max:8'],
-            'formName' => ['required', 'string', 'max:40'],
+            'formName' => [
+                'required', 'string', 'max:40',
+                // Duas "Outros" convivem porque diferem no tipo — a chave única
+                // da tabela é (user_id, type, name), e a regra a espelha.
+                Rule::unique('categories', 'name')
+                    ->where('user_id', Auth::id())
+                    ->where('type', $this->formType),
+            ],
             'formColor' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'formType' => ['required', 'in:income,expense,both'],
+        ], messages: [
+            'formName.unique' => 'Já existe uma categoria :attribute deste tipo.',
         ], attributes: [
             'formIcon' => 'ícone',
             'formName' => 'nome',
@@ -122,13 +132,13 @@ class CategoriesModal extends Component
             'formType' => 'tipo',
         ]);
 
-        $this->added[] = [
-            'id' => 'new-'.Str::slug($validated['formName']).'-'.Date::now()->getTimestamp(),
-            'name' => trim($validated['formName']),
-            'icon' => $validated['formIcon'],
-            'color' => mb_strtolower($validated['formColor']),
-            'type' => $validated['formType'],
-        ];
+        $createCategory->handle(
+            user: Auth::user(),
+            name: $validated['formName'],
+            icon: $validated['formIcon'],
+            color: $validated['formColor'],
+            type: CategoryType::from($validated['formType']),
+        );
 
         // O tipo é mantido: quem cadastra várias seguidas costuma ficar no mesmo.
         $this->formIcon = '📦';
@@ -141,41 +151,29 @@ class CategoriesModal extends Component
         Flux::toast(variant: 'success', text: 'Categoria criada.');
     }
 
-    public function delete(string $id): void
+    public function delete(int $id, DeleteCategory $deleteCategory): void
     {
-        // Guarda de servidor: a lista já esconde o botão nas padrão, mas a ação
-        // é pública e não pode confiar só na view.
-        if ($this->isDefault($id)) {
+        // A listagem já esconde o botão nas que estão em uso, mas a ação é
+        // pública: a busca sai da relação do usuário e a policy confirma.
+        $category = Auth::user()->categories()->findOrFail($id);
+
+        $this->authorize('delete', $category);
+
+        try {
+            $deleteCategory->handle($category);
+        } catch (CategoryInUse $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
             return;
         }
-
-        $this->removed[] = $id;
-        $this->added = array_values(array_filter(
-            $this->added,
-            fn (array $row): bool => $row['id'] !== $id,
-        ));
 
         $this->forgetResults();
 
         Flux::toast(variant: 'success', text: 'Categoria removida.');
     }
 
-    /**
-     * @return Collection<int, Category>
-     */
-    private function addedCategories(): Collection
-    {
-        return collect($this->added)->map(fn (array $row): Category => new Category(
-            id: $row['id'],
-            name: $row['name'],
-            icon: $row['icon'],
-            color: $row['color'],
-            type: CategoryType::from($row['type']),
-        ));
-    }
-
     private function forgetResults(): void
     {
-        unset($this->categories, $this->visible);
+        unset($this->categories, $this->visible, $this->usage);
     }
 }
