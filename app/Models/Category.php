@@ -32,6 +32,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read User $user
  * @property-read Collection<int, Transaction> $transactions
+ * @property-read Collection<int, Budget> $budgets
  */
 #[Fillable(['name', 'icon', 'color', 'type'])]
 #[UsePolicy(CategoryPolicy::class)]
@@ -64,6 +65,14 @@ class Category extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * @return HasMany<Budget, $this>
+     */
+    public function budgets(): HasMany
+    {
+        return $this->hasMany(Budget::class);
     }
 
     /**

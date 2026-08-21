@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries\Results;
 
-use App\Support\Demo\Category;
+use App\Models\Category;
 use App\Support\Money;
 
 final readonly class BudgetRow

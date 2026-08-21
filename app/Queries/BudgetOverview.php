@@ -6,46 +6,55 @@ namespace App\Queries;
 
 use App\Enums\CategoryType;
 use App\Enums\TransactionType;
+use App\Models\Category;
+use App\Models\User;
 use App\Queries\Results\BudgetRow;
 use App\Queries\Results\BudgetTotals;
-use App\Support\Demo\Category;
-use App\Support\Demo\Transaction;
 use App\Support\Money;
 use Illuminate\Support\Collection;
 
 /**
  * Linhas da tela de orçamento: quanto foi gasto contra o limite de cada categoria
- * de despesa. Só entram categorias com gasto no mês ou com limite definido.
+ * que aceita despesa. Só entram categorias com gasto no mês ou com limite definido.
+ *
+ * O gasto e os limites vêm agregados do banco — duas consultas, não a tabela
+ * inteira em memória.
  */
 final class BudgetOverview
 {
     /**
-     * @param  Collection<int, Transaction>  $transactions
-     * @param  Collection<string, Category>  $categories
-     * @param  array<string, int>  $limits  id da categoria => limite em centavos
      * @param  string  $month  chave "Y-m"
      * @return Collection<int, BudgetRow>
      */
-    public function handle(Collection $transactions, Collection $categories, array $limits, string $month): Collection
+    public function handle(User $user, string $month): Collection
     {
-        $spentByCategory = $transactions
-            ->filter(fn (Transaction $tx): bool => $tx->type === TransactionType::Expense
-                && $tx->monthKey() === $month)
-            ->groupBy(fn (Transaction $tx): string => $tx->category_id)
-            ->map(fn (Collection $group): int => (int) $group->sum('amount_cents'));
+        /** @var Collection<int, int> $limits */
+        $limits = $user->budgets()->forMonth($month)->pluck('limit_cents', 'category_id');
 
-        return $categories
-            ->filter(fn (Category $category): bool => $category->type === CategoryType::Expense)
-            ->map(function (Category $category) use ($spentByCategory, $limits): BudgetRow {
-                $spent = Money::fromCents($spentByCategory->get($category->id, 0));
-                $limit = Money::fromCents($limits[$category->id] ?? 0);
+        /** @var Collection<int, int> $spent */
+        $spent = $user->transactions()
+            ->where('type', TransactionType::Expense)
+            ->inMonth($month)
+            ->groupBy('category_id')
+            ->selectRaw('category_id, sum(amount_cents) as total')
+            ->pluck('total', 'category_id');
+
+        // "Ambos" entra junto: a categoria aceita despesa, então o gasto dela é
+        // gasto do mês. O protótipo só tinha categorias puras e não decidiu isto.
+        return $user->categories()
+            ->whereIn('type', [CategoryType::Expense, CategoryType::Both])
+            ->inRegistryOrder()
+            ->get()
+            ->map(function (Category $category) use ($spent, $limits): BudgetRow {
+                $categorySpent = Money::fromCents((int) $spent->get($category->id, 0));
+                $limit = Money::fromCents((int) $limits->get($category->id, 0));
 
                 return new BudgetRow(
                     category: $category,
-                    spent: $spent,
+                    spent: $categorySpent,
                     limit: $limit,
-                    percent: $limit->isZero() ? null : $spent->percentOf($limit),
-                    over: ! $limit->isZero() && $spent->cents > $limit->cents,
+                    percent: $limit->isZero() ? null : $categorySpent->percentOf($limit),
+                    over: ! $limit->isZero() && $categorySpent->cents > $limit->cents,
                 );
             })
             ->reject(fn (BudgetRow $row): bool => $row->spent->isZero() && $row->limit->isZero())

@@ -46,6 +46,9 @@ Legenda: sem marca = já existe no repositório · `+` = a criar conforme o proj
 PilaControl/
 ├── app/
 │   ├── Actions/
+│   │   ├── Budgets/
+│   │   │   ├── RemoveCategoryBudget.php
+│   │   │   └── SetCategoryBudget.php
 │   │   ├── Categories/              # casos de uso — 1 classe, 1 método handle()
 │   │   │   ├── CreateCategory.php
 │   │   │   ├── CreateDefaultCategories.php   # conjunto padrão da conta nova
@@ -54,7 +57,6 @@ PilaControl/
 │   │   └── Transactions/
 │   │       ├── CreateTransaction.php
 │   │       └── DeleteTransaction.php
-│   │   +   Budgets/
 │   │   +   Goals/
 │   │
 │   ├── Concerns/                    # traits compartilhadas (Password/ProfileValidationRules)
@@ -82,10 +84,11 @@ PilaControl/
 │   │   +   Forms/                   # Livewire Form Objects
 │   │
 │   ├── Models/
+│   │   ├── Budget.php               # limite por (categoria, mês); scope forMonth
 │   │   ├── Category.php             # ligada ao usuário; type é CategoryType
 │   │   ├── Transaction.php          # centavos + enum; scopes latestFirst/inMonth
 │   │   └── User.php
-│   │   +   Budget.php  Goal.php
+│   │   +   Goal.php
 │   │
 │   ├── Observers/
 │   │   └── UserObserver.php         # conta nova recebe as categorias padrão
@@ -98,7 +101,7 @@ PilaControl/
 │   │
 │   ├── Queries/                     # agregações de leitura (dashboard, relatórios)
 │   │   ├── BalanceTimeline.php      # série mensal receita vs despesa
-│   │   ├── BudgetOverview.php       # gasto contra limite, por categoria
+│   │   ├── BudgetOverview.php       # gasto contra limite, por categoria — em SQL
 │   │   ├── MonthlySummary.php       # receitas, despesas, saldo de um período
 │   │   ├── SpendingByCategory.php   # ranking de gasto no mês
 │   │   └── Results/                 # objetos readonly de retorno — ver 7
@@ -108,13 +111,13 @@ PilaControl/
 │       ├── DefaultCategories.php    # as treze com que uma conta nasce
 │       ├── Money.php                # value object de valor monetário
 │       ├── MonthLabel.php           # rótulos de mês e data — ver 3.5
-│       ├── DemoData.php             # PROVISÓRIO: dados do protótipo — ver 3.2
+│       ├── DemoData.php             # PROVISÓRIO: só Dashboard/Relatórios/Metas
 │       └── Demo/                    # PROVISÓRIO: stand-in dos models
 │
 ├── bootstrap/  config/  public/  storage/
 │
 ├── database/
-│   ├── factories/                   # UserFactory, CategoryFactory, TransactionFactory
+│   ├── factories/                   # User, Category, Transaction, Budget
 │   ├── migrations/                  # + categories, transactions, budgets, goals
 │   ├── schema/                      # o mesmo schema em SQL puro, para inspeção
 │   ├── seeders/                     # DatabaseSeeder: conta de teste com categorias
@@ -179,7 +182,7 @@ PilaControl/
 | — | `views/livewire/auth/two-factor-challenge.blade.php` | — | extra do kit |
 | `Dashboard` | `Livewire\Dashboard\Index` | `/dashboard` | frontend pronto |
 | `TransactionsView` | `Livewire\Transactions\Index` | `/transacoes` | **pronto, no banco** |
-| `BudgetView` | `Livewire\Budgets\Index` | `/orcamento` | frontend pronto |
+| `BudgetView` | `Livewire\Budgets\Index` | `/orcamento` | **pronto, no banco** |
 | `GoalsView` | `Livewire\Goals\Index` | `/metas` | frontend pronto |
 | `ReportsView` | `Livewire\Reports\Index` | `/relatorios` | frontend pronto |
 | `TransactionModal` | dentro de `Livewire\Transactions\Index` | — (modal) | frontend pronto |
@@ -221,7 +224,7 @@ app/Livewire/Transactions/TransactionModal.php → views/livewire/transactions/t
 | `User` (`src/auth.ts`) | `User` | `users` | pronto |
 | `Category` | `Category` | `categories` | **pronto** — model, factory, policy, Actions |
 | `Transaction` | `Transaction` | `transactions` | **pronto** — model, factory, policy, Actions |
-| `Budget` | `Budget` | `budgets` | tabela pronta; model a fazer |
+| `Budget` | `Budget` | `budgets` | **pronto** — model, factory, Actions |
 | `Goal` | `Goal` | `goals` | tabela pronta; model a fazer (hoje `Support\Demo\Goal`) |
 
 As quatro tabelas de domínio já existem — as migrations estão em `database/migrations/` e o
@@ -270,17 +273,17 @@ tela, e em cada uma:
 |---|---|---|
 | Categorias (modal) | `Models\Category` | banco, via Actions |
 | Transações | `Models\Transaction` | banco, via Actions |
-| Orçamento | `DemoData` | estado do componente |
+| Orçamento | `Models\Budget` + `Models\Transaction` | banco, via Actions |
 | Metas | `DemoData` | estado do componente |
 | Dashboard e Relatórios | `DemoData` | — (só leitura) |
 
-O estado de escrita das telas não convertidas é provisório: `Budgets\Index::$limits` e
-`Goals\Index::$added`/`$removed`/`$deposits` guardam as alterações no próprio componente e
-desaparecem ao sair da página. Somem com o `DemoData`, dando lugar às Actions de 3.3.
+O estado de escrita da tela não convertida é provisório: `Goals\Index::$added`/`$removed`/
+`$deposits` guardam as alterações no próprio componente e desaparecem ao sair da página. Somem
+com o `DemoData`, dando lugar às Actions de 3.3.
 
 Enquanto a conversão não termina há uma inconsistência visível: lançamento e categoria criados
-de verdade não aparecem no Dashboard, no Orçamento nem nos Relatórios, que continuam mostrando
-os números do protótipo.
+de verdade não aparecem no Dashboard nem nos Relatórios, que continuam mostrando os números do
+protótipo.
 
 **Query compartilhada durante a travessia.** `Queries\MonthlySummary` recebe hoje `Collection`
 de `Models\Transaction` (Transações) ou de `Support\Demo\Transaction` (Dashboard, Relatórios).
@@ -301,7 +304,8 @@ enquanto houver tela com estado no componente; as convertidas não têm mais `$a
 |---|---|
 | `addTransaction` | `Actions\Transactions\CreateTransaction` — **feita** |
 | `deleteTransaction` | `Actions\Transactions\DeleteTransaction` — **feita** |
-| `updateBudget` | `Actions\Budgets\SetCategoryBudget` |
+| `updateBudget` | `Actions\Budgets\SetCategoryBudget` — **feita** |
+| — (o protótipo guardava zero) | `Actions\Budgets\RemoveCategoryBudget` — **feita** |
 | `addCategory` | `Actions\Categories\CreateCategory` — **feita** |
 | `deleteCategory` | `Actions\Categories\DeleteCategory` — **feita** |
 | `addGoal` | `Actions\Goals\CreateGoal` |
@@ -314,11 +318,22 @@ código. Aqui são linhas de uma conta, e alguém tem que criá-las — ver 3.2.
 **A categoria é o ponto de partida de `CreateTransaction`, não o usuário.** O lançamento é do
 mesmo dono da gaveta em que entra, então a Action tira o `user_id` da categoria e não há como
 gravar na conta errada. Por isso `user_id` não está no `#[Fillable]` do `Transaction` — e a
-`TransactionFactory` faz o mesmo, derivando o dono da categoria que recebe.
+`TransactionFactory` faz o mesmo, derivando o dono da categoria que recebe. `SetCategoryBudget`
+segue a mesma regra.
+
+**"Sem limite" é a ausência de registro**, não um registro de valor zero. `SetCategoryBudget`
+recusa valor não positivo e `RemoveCategoryBudget` apaga a linha; zero digitado na tela cai no
+segundo, que é o que faz o botão voltar a dizer "Definir limite". Consequência boa: a tabela
+`budgets` só tem linhas que significam algo.
 
 Os cálculos do dashboard e dos relatórios (totais por mês, gasto por categoria, saldo,
 evolução) **não são Actions** — são leitura. Vão para `app/Queries/`, ex.:
 `Queries\MonthlySummary`, `Queries\SpendingByCategory`, `Queries\BalanceTimeline`.
+
+Conforme cada tela sai do `DemoData`, a Query dela passa a agregar **no banco** em vez de em
+memória. `BudgetOverview` já é assim: recebe `User` e a chave do mês, e faz três consultas
+(limites, soma de gasto por categoria, categorias) em vez de receber a tabela inteira. As que
+ainda servem telas no `DemoData` continuam recebendo coleção.
 
 ### 3.4 Autenticação — Fortify
 
@@ -590,7 +605,7 @@ Pest 5. A suíte espelha a aplicação:
 - `tests/Unit/**` — só código sem banco: `Support\Money`, enums, cálculos puros.
 
 `tests/Feature/Auth/` e `tests/Feature/Settings/` vieram do starter kit e servem de modelo de
-estilo para os nossos. A suíte hoje: **147 testes, 462 asserções**.
+estilo para os nossos. A suíte hoje: **163 testes, 492 asserções**.
 
 O `Livewire::test()` renderiza o componente, não o layout — por isso existe também o
 `FinanceScreensTest`, que faz `GET` nas cinco rotas e verifica a página inteira. É o que pega
@@ -627,11 +642,16 @@ Toda factory em `database/factories/`, uma por model.
 | `Goal.current_cents` | campo, não soma de aportes — nenhuma tela mostra histórico |
 | Categorias iniciais | linhas do usuário, criadas no `UserObserver`; não há "padrão" protegida |
 | Categoria em uso | não se apaga: `restrictOnDelete` na FK, aviso antes pela Action |
+| Limite de orçamento | "sem limite" é ausência de linha em `budgets`, não linha com zero |
+| Categoria "ambos" no orçamento | entra na tela: aceita despesa, então o gasto dela conta |
 
 ### Em aberto
 
-- **Converter as telas restantes para o banco**, uma por vez: Orçamento, Metas e, por último,
-  Dashboard e Relatórios (que só leem do que as outras escrevem). Ver 3.2.
+- **Converter as telas restantes para o banco**: Metas e, por último, Dashboard e Relatórios
+  (que só leem do que as outras escrevem). Ver 3.2.
+- **Mês fixo na tela de Orçamento.** Ela sempre mostra o mês corrente, como o protótipo, mas a
+  tabela `budgets` guarda limite por mês e `BudgetOverview` já recebe a chave — falta só o
+  seletor de mês na interface para ver e editar meses passados.
 - **Paginação na tela de Transações.** Hoje o recorte filtrado vem inteiro do banco, dentro da
   área de rolagem de 520px — é o que o protótipo faz e o que os totais do topo somam. Passa a
   pesar quando uma conta acumular alguns milhares de lançamentos; a saída é `paginate()` mais

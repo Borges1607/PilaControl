@@ -91,7 +91,7 @@
                     @else
                         <button
                             type="button"
-                            wire:click="startEdit('{{ $row->category->id }}')"
+                            wire:click="startEdit({{ $row->category->id }})"
                             class="w-full text-left font-mono text-xs hover:underline md:text-right {{ $row->limit->isZero() ? 'text-muted-foreground' : 'text-foreground' }}"
                         >
                             {{ $row->limit->isZero() ? 'Definir limite' : $row->limit->format() }}

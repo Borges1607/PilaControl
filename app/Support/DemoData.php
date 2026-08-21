@@ -15,12 +15,12 @@ use Illuminate\Support\Facades\Date;
 /**
  * TEMPORÁRIO — conteúdo de vitrine, copiado de `src/data.ts` do protótipo.
  *
- * Existe apenas para as telas terem dados enquanto os models Category, Transaction
- * e Budget não existem. Os objetos de `App\Support\Demo` expõem as mesmas colunas
- * que os models terão, então as views não mudam na troca.
+ * Em desmontagem: Categorias, Transações e Orçamento já leem do banco. O que
+ * sobra aqui alimenta as telas que ainda não foram convertidas — Dashboard e
+ * Relatórios (`transactions()`) e Metas (`goals()`).
  *
- * Ao criar os models: apagar este arquivo e o namespace `App\Support\Demo`, e trocar
- * o type hint das classes em `app/Queries` por `App\Models\*`. Nada mais deve mudar.
+ * Ao converter a última: apagar este arquivo e o namespace `App\Support\Demo`, e
+ * trocar o type hint das classes em `app/Queries` por `App\Models\*`.
  */
 final class DemoData
 {
@@ -98,24 +98,6 @@ final class DemoData
         ])
             ->sortByDesc(fn (Transaction $tx): string => $tx->sortKey())
             ->values();
-    }
-
-    /**
-     * Limites do mês corrente.
-     *
-     * @return array<string, int> id da categoria => limite em centavos
-     */
-    public static function budgetLimits(): array
-    {
-        return [
-            'housing' => Money::fromReais(1800)->cents,
-            'food' => Money::fromReais(800)->cents,
-            'transport' => Money::fromReais(400)->cents,
-            'health' => Money::fromReais(300)->cents,
-            'leisure' => Money::fromReais(400)->cents,
-            'shopping' => Money::fromReais(500)->cents,
-            'bills' => Money::fromReais(350)->cents,
-        ];
     }
 
     /**
