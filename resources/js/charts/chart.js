@@ -129,52 +129,65 @@ function build({ type, labels, series, money }, theme) {
 
 export default function registerChart() {
     document.addEventListener('alpine:init', () => {
-        window.Alpine.data('chart', (config) => ({
-            instance: null,
+        window.Alpine.data('chart', (config) => {
+            // A instância do Chart.js mora aqui, no fechamento, e **não** como
+            // propriedade do objeto devolvido ao Alpine.
+            //
+            // O Alpine embrulha o que devolvemos em proxy reativo. O objeto do
+            // Chart.js é um grafo grande e circular (chart → canvas → chart,
+            // escala → chart), então guardá-lo numa propriedade fazia o
+            // `update()` percorrer o proxy e estourar com "Maximum call stack
+            // size exceeded" — a construção passava, porque acontece antes da
+            // atribuição; quem quebrava era a atualização por evento. Variável
+            // de fechamento nunca é proxiada, e o Alpine chama esta fábrica uma
+            // vez por elemento, então cada gráfico tem a sua.
+            let instance = null
 
-            init() {
-                this.instance = new Chart(this.$refs.canvas, build(config, chartTheme()))
+            return {
+                init() {
+                    instance = new Chart(this.$refs.canvas, build(config, chartTheme()))
 
-                // O Livewire nunca re-renderiza este bloco (wire:ignore); a atualização
-                // de dados chega por evento e é repassada para o próprio Chart.js.
-                this.$el.addEventListener('chart:data', (event) => this.replace(event.detail))
+                    // O Livewire nunca re-renderiza este bloco (wire:ignore); a atualização
+                    // de dados chega por evento e é repassada para o próprio Chart.js.
+                    this.$el.addEventListener('chart:data', (event) => this.replace(event.detail))
 
-                // Mesmo caminho, vindo do servidor: `$this->dispatch('chart:data', ...)`
-                // cai na window, então o gráfico só aceita o que traz o seu próprio nome.
-                window.addEventListener('chart:data', (event) => {
-                    if (! config.name || event.detail?.name !== config.name) return
+                    // Mesmo caminho, vindo do servidor: `$this->dispatch('chart:data', ...)`
+                    // cai na window, então o gráfico só aceita o que traz o seu próprio nome.
+                    window.addEventListener('chart:data', (event) => {
+                        if (! config.name || event.detail?.name !== config.name) return
 
-                    this.replace(event.detail)
-                })
-            },
+                        this.replace(event.detail)
+                    })
+                },
 
-            replace({ labels, series }) {
-                if (! this.instance) {
-                    return
-                }
-
-                const theme = chartTheme()
-
-                this.instance.data.labels = labels
-                series.forEach((set, index) => {
-                    const dataset = this.instance.data.datasets[index]
-
-                    if (! dataset) return
-
-                    dataset.data = set.data
-
-                    // O rosca pinta fatia a fatia: trocar o período troca as categorias.
-                    if (set.colors) {
-                        dataset.backgroundColor = set.colors.map((value) => color(value, theme))
+                replace({ labels, series }) {
+                    if (! instance) {
+                        return
                     }
-                })
-                this.instance.update()
-            },
 
-            destroy() {
-                this.instance?.destroy()
-                this.instance = null
-            },
-        }))
+                    const theme = chartTheme()
+
+                    instance.data.labels = labels
+                    series.forEach((set, index) => {
+                        const dataset = instance.data.datasets[index]
+
+                        if (! dataset) return
+
+                        dataset.data = set.data
+
+                        // O rosca pinta fatia a fatia: trocar o período troca as categorias.
+                        if (set.colors) {
+                            dataset.backgroundColor = set.colors.map((value) => color(value, theme))
+                        }
+                    })
+                    instance.update()
+                },
+
+                destroy() {
+                    instance?.destroy()
+                    instance = null
+                },
+            }
+        })
     })
 }

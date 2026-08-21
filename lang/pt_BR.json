@@ -1,0 +1,22 @@
+{
+    "The provided password was incorrect.": "A senha informada está incorreta.",
+    "The provided two factor authentication code was invalid.": "O código de verificação é inválido.",
+    "The provided two factor recovery code was invalid.": "O código de recuperação é inválido.",
+    "Two factor authentication is not enabled.": "A verificação em duas etapas não está ativada.",
+    "The :attribute must be at least :length characters.": ":attribute tem de ter ao menos :length caracteres.",
+    "The :attribute must be at least :length characters and contain at least one number.": ":attribute tem de ter ao menos :length caracteres e um número.",
+    "The :attribute must be at least :length characters and contain at least one special character.": ":attribute tem de ter ao menos :length caracteres e um caractere especial.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character.": ":attribute tem de ter ao menos :length caracteres e uma letra maiúscula.",
+    "The :attribute must be at least :length characters and contain at least one special character and one number.": ":attribute tem de ter ao menos :length caracteres, um caractere especial e um número.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character and one number.": ":attribute tem de ter ao menos :length caracteres, uma letra maiúscula e um número.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character and one special character.": ":attribute tem de ter ao menos :length caracteres, uma letra maiúscula e um caractere especial.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character, one number, and one special character.": ":attribute tem de ter ao menos :length caracteres, uma letra maiúscula, um número e um caractere especial.",
+    "Dashboard": "Dashboard",
+    "Settings": "Configurações",
+    "Log out": "Sair",
+    "Search": "Buscar",
+    "Platform": "Plataforma",
+    "Repository": "Repositório",
+    "Documentation": "Documentação",
+    "Welcome": "Bem-vindo"
+}

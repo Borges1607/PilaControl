@@ -130,6 +130,10 @@ PilaControl/
 ├── docs/
 │   └── estrutura-do-projeto.md      # este arquivo
 │
+├── lang/
+│   ├── pt_BR.json                   # strings que o Fortify pede por texto
+│   └── pt_BR/                       # validation, auth, passwords, pagination
+│
 ├── resources/
 │   ├── css/app.css                  # Tailwind v4 + Flux + design tokens
 │   ├── js/
@@ -437,8 +441,24 @@ Onde mexer, quando for o caso:
 - Criação de usuário e reset → `app/Actions/Fortify/`.
 - Configuração de features → `config/fortify.php` e `FortifyServiceProvider`.
 
-Traduzir a interface para pt-BR é trabalho pendente: as strings estão em `__()`, então basta
-criar `lang/pt_BR/`. Nada de reescrever a lógica.
+**Idioma.** O app roda em `pt_BR` (`APP_LOCALE`), com `en` como fallback. As traduções estão em
+`lang/pt_BR/` — `validation.php`, `auth.php`, `passwords.php`, `pagination.php` — mais o
+`lang/pt_BR.json` para as strings que o Fortify pede por texto, não por chave. O que não tiver
+tradução cai nos arquivos em inglês que vêm no framework, então nada quebra por falta de chave;
+aparece em inglês, e é assim que se descobre o que falta.
+
+Duas coisas sobre as mensagens de validação, que valem mais que a tradução em si:
+
+- **A frase concorda com "campo", não com o nome do campo.** Em português o adjetivo concorda em
+  gênero, e o nome do campo entra como variável: ":attribute é obrigatório" viraria "descrição é
+  obrigatório". Por isso as mensagens são "O campo :attribute é obrigatório." — mais longas, e
+  corretas para qualquer nome. O cabeçalho do `validation.php` repete esse raciocínio.
+- **O nome do campo vem da tela, não do arquivo.** As telas do domínio passam `attributes:` na
+  própria chamada do `$this->validate()`, em português. O bloco `attributes` do `validation.php`
+  cobre só os formulários do starter kit, que validam por nomes em inglês (`email`, `password`).
+
+O `tests/Feature/LocaleTest.php` trava isso: se o locale voltar para `en` ou uma mensagem sair
+do padrão, ele falha.
 
 ### 3.5 Helpers de formatação
 
@@ -617,9 +637,22 @@ resources/views/components/ui/
 - O `Alpine.data('chart', …)` é registrado dentro de `alpine:init`, chamado por
   `resources/js/app.js`. O Alpine vem embutido no script do Livewire, que carrega no fim do
   `<body>`; registrar fora desse evento não garante ordem.
+- **A instância do Chart.js não pode ser propriedade do componente Alpine.** O Alpine embrulha
+  o objeto devolvido pela fábrica em proxy reativo, e o objeto do Chart.js é um grafo grande e
+  circular (chart → canvas → chart, escala → chart): guardado numa propriedade, o `update()`
+  percorre o proxy e estoura com `RangeError: Maximum call stack size exceeded`. O sintoma
+  engana, porque a **construção** passa — ela acontece antes da atribuição —, e só a atualização
+  por evento quebra: nos Relatórios, ao trocar o período; nunca no Dashboard, que não atualiza.
+  A instância mora numa variável do fechamento da fábrica, que o Alpine nunca proxia, e como
+  ele chama a fábrica uma vez por elemento, cada gráfico tem a sua.
 
 Se os relatórios pedirem interação mais pesada (zoom, brush, séries sincronizadas), o plano B
 é ApexCharts — a troca fica contida nos quatro arquivos acima.
+
+**Rebuild não é opcional.** As classes do Tailwind saem de uma varredura dos arquivos Blade, e
+`php artisan serve` sozinho não refaz o bundle: Blade nova com classe que ainda não existia no
+CSS renderiza sem estilo — o que aparece como layout torto, não como erro. Ao mexer em view,
+`npm run dev` (que fica observando) ou `npm run build`.
 
 ---
 
@@ -688,6 +721,7 @@ Toda factory em `database/factories/`, uma por model.
 | Ordem das metas | prazo mais próximo primeiro — é o índice da tabela e o que interessa |
 | Policy por model | só para o que é endereçado por id próprio; `Budget` chega por (categoria, mês) |
 | Agregação | no banco, uma Query por leitura; `BalanceTimeline` agrupa em PHP por portabilidade |
+| Idioma | `pt_BR` com fallback `en`; mensagem concorda com "campo" — ver 3.4 |
 | Dados do protótipo | `Database\Seeders\DemoSeeder`, pelas Actions — desenvolvimento, não produção |
 
 ### Em aberto
@@ -706,9 +740,11 @@ Toda factory em `database/factories/`, uma por model.
 - Manter ou remover o 2FA — veio de brinde e ainda não foi decidido. Os passkeys já saíram.
 - Tema claro: hoje o app é escuro por construção e a tela de Aparência saiu por isso. Voltar
   exige projetar a paleta clara no `@theme` do `app.css` — ver 3.6.
-- Traduzir a interface do starter kit para pt-BR (`lang/pt_BR/`). As telas do domínio já
-  nasceram em português, com as strings direto na Blade; quando o `lang/pt_BR/` existir, elas
-  passam por `__()` junto com o resto.
+- **Strings do starter kit que ainda estão em inglês na Blade.** As mensagens de validação, de
+  autenticação e de recuperação de senha já estão traduzidas (ver 3.4); o que sobra são rótulos
+  soltos em arquivos herdados — e os que encontrei (`layouts/app/header.blade.php`,
+  `components/desktop-user-menu.blade.php`) estão na lista de limpeza, sem uso. Se algum voltar
+  a ser usado, a tradução dele já está no `lang/pt_BR.json`.
 - Multi-moeda / contas bancárias: fora do escopo do protótipo, não modelado.
 
 ### Limpeza pendente
