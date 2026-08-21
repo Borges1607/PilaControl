@@ -51,7 +51,7 @@
                             size="xs"
                             variant="subtle"
                             icon="x-mark"
-                            wire:click="{{ $deleteAction }}('{{ $tx->id }}')"
+                            wire:click="{{ $deleteAction }}({{ $tx->id }})"
                             wire:confirm="Remover “{{ $tx->description }}”?"
                             class="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground!"
                         >

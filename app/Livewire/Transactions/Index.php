@@ -4,27 +4,30 @@ declare(strict_types=1);
 
 namespace App\Livewire\Transactions;
 
+use App\Actions\Transactions\CreateTransaction;
+use App\Actions\Transactions\DeleteTransaction;
 use App\Enums\TransactionType;
+use App\Models\Category;
+use App\Models\Transaction;
 use App\Queries\MonthlySummary;
 use App\Queries\Results\PeriodSummary;
-use App\Support\Demo\Category;
-use App\Support\Demo\Transaction;
-use App\Support\DemoData;
 use App\Support\Money;
 use App\Support\MonthLabel;
 use Flux\Flux;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
- * @property-read Collection<string, Category> $categories
- * @property-read Collection<string, Category> $formCategories
+ * @property-read Collection<int, Category> $categories
+ * @property-read Collection<int, Category> $formCategories
  * @property-read array<string, string> $months
- * @property-read Collection<int, Transaction> $all
  * @property-read Collection<int, Transaction> $transactions
  * @property-read PeriodSummary $totals
  * @property-read bool $hasFilters
@@ -47,22 +50,6 @@ class Index extends Component
     #[Url(as: 'mes')]
     public string $month = '';
 
-    /**
-     * Lançamentos criados e removidos nesta visita.
-     *
-     * Enquanto a tabela `transactions` não existe, o estado do componente é a única
-     * memória possível. Ao criar o model: apagar estas duas propriedades e ligar o
-     * formulário a Actions\Transactions\CreateTransaction / DeleteTransaction.
-     *
-     * @var array<int, array<string, mixed>>
-     */
-    public array $added = [];
-
-    /**
-     * @var array<int, string>
-     */
-    public array $removed = [];
-
     // Formulário do modal de nova transação.
     public string $formType = 'expense';
 
@@ -82,18 +69,20 @@ class Index extends Component
     }
 
     /**
-     * @return Collection<string, Category>
+     * O registro do usuário — alimenta o filtro de categoria.
+     *
+     * @return Collection<int, Category>
      */
     #[Computed]
     public function categories(): Collection
     {
-        return DemoData::categories();
+        return Auth::user()->categories()->inRegistryOrder()->get()->keyBy('id');
     }
 
     /**
      * Categorias válidas para o tipo escolhido no formulário.
      *
-     * @return Collection<string, Category>
+     * @return Collection<int, Category>
      */
     #[Computed]
     public function formCategories(): Collection
@@ -101,64 +90,50 @@ class Index extends Component
         $type = TransactionType::from($this->formType);
 
         return $this->categories->filter(
-            fn (Category $category): bool => $category->type->accepts($type)
+            fn (Category $category): bool => $category->accepts($type)
         );
     }
 
     /**
      * Meses com lançamentos, do mais recente ao mais antigo.
      *
+     * Só a coluna `date` sai do banco; o agrupamento em "Y-m" é feito em PHP
+     * para a consulta não depender do `strftime` do SQLite.
+     *
      * @return array<string, string>
      */
     #[Computed]
     public function months(): array
     {
-        return $this->all
+        return Auth::user()->transactions()
+            ->latestFirst()
+            ->get(['date'])
             ->map(fn (Transaction $tx): string => $tx->monthKey())
             ->unique()
-            ->sortDesc()
             ->mapWithKeys(fn (string $month): array => [$month => MonthLabel::short($month)])
             ->all();
     }
 
     /**
-     * Base completa, já com as alterações desta visita aplicadas.
+     * O recorte atual, com os filtros aplicados no banco.
      *
-     * @return Collection<int, Transaction>
-     */
-    #[Computed]
-    public function all(): Collection
-    {
-        return DemoData::transactions()
-            ->concat($this->addedTransactions())
-            ->reject(fn (Transaction $tx): bool => in_array($tx->id, $this->removed, true))
-            ->sortByDesc(fn (Transaction $tx): string => $tx->sortKey())
-            ->values();
-    }
-
-    /**
      * @return Collection<int, Transaction>
      */
     #[Computed]
     public function transactions(): Collection
     {
-        return $this->all
-            ->when($this->type !== 'all', fn (Collection $rows): Collection => $rows->filter(
-                fn (Transaction $tx): bool => $tx->type->value === $this->type
-            ))
-            ->when($this->search !== '', fn (Collection $rows): Collection => $rows->filter(
-                fn (Transaction $tx): bool => str_contains(
-                    mb_strtolower($tx->description),
-                    mb_strtolower(trim($this->search))
-                )
-            ))
-            ->when($this->categoryId !== '', fn (Collection $rows): Collection => $rows->filter(
-                fn (Transaction $tx): bool => $tx->category_id === $this->categoryId
-            ))
-            ->when($this->month !== '', fn (Collection $rows): Collection => $rows->filter(
-                fn (Transaction $tx): bool => $tx->monthKey() === $this->month
-            ))
-            ->values();
+        $search = trim($this->search);
+
+        return Auth::user()->transactions()
+            // A tabela mostra ícone e pílula de cada linha: sem isto é 1 + N.
+            ->with('category')
+            ->when($this->type !== 'all', fn (Builder $query): Builder => $query->where('type', $this->type))
+            ->when($search !== '', fn (Builder $query): Builder => $query->whereLike('description', "%{$search}%"))
+            ->when($this->categoryId !== '', fn (Builder $query): Builder => $query->where('category_id', (int) $this->categoryId))
+            // Mês só entra se vier na forma "Y-m" — o valor chega da URL.
+            ->when($this->isMonthKey($this->month), fn (Builder $query): Builder => $query->inMonth($this->month))
+            ->latestFirst()
+            ->get();
     }
 
     #[Computed]
@@ -178,6 +153,10 @@ class Index extends Component
 
     public function setType(string $type): void
     {
+        if (! in_array($type, ['all', 'income', 'expense'], true)) {
+            return;
+        }
+
         $this->type = $type;
 
         $this->forgetResults();
@@ -205,14 +184,16 @@ class Index extends Component
         unset($this->formCategories);
     }
 
-    public function save(): void
+    public function save(CreateTransaction $createTransaction): void
     {
         $validated = $this->validate([
             'formType' => ['required', 'in:income,expense'],
             'formDescription' => ['required', 'string', 'max:255'],
             'formAmount' => ['required', 'numeric', 'gt:0', 'max:99999999'],
             'formDate' => ['required', 'date'],
-            'formCategoryId' => ['required', 'string', 'in:'.$this->formCategories->keys()->implode(',')],
+            // A lista é só das compatíveis com o tipo: categoria de receita não
+            // recebe despesa, e o seletor já mostra apenas essas.
+            'formCategoryId' => ['required', Rule::in($this->formCategoryIds())],
             'formNotes' => ['nullable', 'string', 'max:255'],
         ], attributes: [
             'formType' => 'tipo',
@@ -223,15 +204,14 @@ class Index extends Component
             'formNotes' => 'observações',
         ]);
 
-        $this->added[] = [
-            'id' => 'new-'.count($this->added).'-'.Date::now()->getTimestamp(),
-            'date' => $validated['formDate'],
-            'description' => $validated['formDescription'],
-            'amount_cents' => Money::fromReais($validated['formAmount'])->cents,
-            'type' => $validated['formType'],
-            'category_id' => $validated['formCategoryId'],
-            'notes' => $validated['formNotes'] ?: null,
-        ];
+        $createTransaction->handle(
+            category: $this->categories[(int) $validated['formCategoryId']],
+            type: TransactionType::from($validated['formType']),
+            description: $validated['formDescription'],
+            amount: Money::fromReais($validated['formAmount']),
+            date: Date::parse($validated['formDate']),
+            notes: $validated['formNotes'] ?: null,
+        );
 
         $this->resetForm();
         $this->forgetResults();
@@ -240,13 +220,14 @@ class Index extends Component
         Flux::toast(variant: 'success', text: 'Transação adicionada.');
     }
 
-    public function delete(string $id): void
+    public function delete(int $id, DeleteTransaction $deleteTransaction): void
     {
-        $this->removed[] = $id;
-        $this->added = array_values(array_filter(
-            $this->added,
-            fn (array $row): bool => $row['id'] !== $id,
-        ));
+        // A busca sai da relação do usuário; a policy é a segunda tranca.
+        $transaction = Auth::user()->transactions()->findOrFail($id);
+
+        $this->authorize('delete', $transaction);
+
+        $deleteTransaction->handle($transaction);
 
         $this->forgetResults();
 
@@ -268,29 +249,26 @@ class Index extends Component
     }
 
     /**
-     * Nome do método importa: o Livewire trata `hydrate{Propriedade}` como hook de
-     * ciclo de vida e tenta chamá-lo de fora. `hydrateAdded` colidiria com `$added`.
+     * Ids aceitos no seletor, como string: é assim que o valor chega do `<select>`
+     * e é assim que a regra `in` compara.
      *
-     * @return Collection<int, Transaction>
+     * @return array<int, string>
      */
-    private function addedTransactions(): Collection
+    private function formCategoryIds(): array
     {
-        $categories = $this->categories;
+        return $this->formCategories
+            ->map(fn (Category $category): string => (string) $category->id)
+            ->values()
+            ->all();
+    }
 
-        return collect($this->added)->map(fn (array $row): Transaction => new Transaction(
-            id: (string) $row['id'],
-            date: Date::parse((string) $row['date']),
-            description: (string) $row['description'],
-            amount_cents: (int) $row['amount_cents'],
-            type: TransactionType::from((string) $row['type']),
-            category_id: (string) $row['category_id'],
-            category: $categories[(string) $row['category_id']],
-            notes: $row['notes'] === null ? null : (string) $row['notes'],
-        ));
+    private function isMonthKey(string $month): bool
+    {
+        return preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month) === 1;
     }
 
     private function forgetResults(): void
     {
-        unset($this->all, $this->transactions, $this->totals, $this->months, $this->hasFilters);
+        unset($this->transactions, $this->totals, $this->months, $this->hasFilters);
     }
 }
