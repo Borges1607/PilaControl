@@ -26,5 +26,9 @@ class DatabaseSeeder extends Seeder
         // O `UserObserver` faria isso sozinho, mas o `WithoutModelEvents` acima
         // cala os eventos durante o seed. Chamar a Action é o mesmo caminho.
         app(CreateDefaultCategories::class)->handle($user);
+
+        // A conta de teste nasce com os dados do protótipo: sem isto o dashboard
+        // abre vazio e não há o que olhar em desenvolvimento.
+        $this->callWith(DemoSeeder::class, ['user' => $user]);
     }
 }

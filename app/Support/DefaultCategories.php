@@ -9,9 +9,9 @@ use App\Enums\CategoryType;
 /**
  * O conjunto com que uma conta nasce — as treze categorias do protótipo.
  *
- * Não é dado de vitrine: sai do `DemoData` e sobrevive a ele, porque toda conta
- * nova recebe estas linhas de verdade na tabela `categories`. A partir daí são
- * categorias do usuário como qualquer outra: ele renomeia, apaga, cria as suas.
+ * Não é dado de vitrine, e é o que separa esta classe do `DemoSeeder`: toda conta
+ * nova recebe estas linhas, em qualquer ambiente. A partir daí são categorias do
+ * usuário como qualquer outra: ele renomeia, apaga, cria as suas.
  *
  * A ordem importa — é a ordem de cadastro, e portanto a ordem de listagem:
  * receitas primeiro, depois as despesas.

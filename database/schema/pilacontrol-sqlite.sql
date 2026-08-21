@@ -237,8 +237,10 @@ INSERT INTO "migrations" ("migration", "batch") VALUES
     ('2026_08_21_000300_create_goals_table', 1);
 
 -- =====================================================================
--- 4. Categorias padrão de um usuário (App\Support\DemoData::categories)
--- É o conteúdo do futuro CategorySeeder.
+-- 4. Categorias padrão de um usuário (App\Support\DefaultCategories)
+-- Na aplicação isto é feito pelo Actions\Categories\CreateDefaultCategories,
+-- chamado no UserObserver: toda conta nova nasce com estas treze. O bloco
+-- abaixo é o mesmo conteúdo em SQL, para quem estiver montando o banco à mão.
 --
 -- PRECONDIÇÃO: o usuário tem de existir — categories.user_id é FK. Troque
 -- o e-mail abaixo pelo dono das categorias; se não casar com ninguém, o

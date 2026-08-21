@@ -136,10 +136,14 @@ class Index extends Component
             ->get();
     }
 
+    /**
+     * Totais do recorte visível. Soma as linhas já carregadas para a tabela — o
+     * recorte vem de filtros quaisquer, não de um mês, e elas já estão em mãos.
+     */
     #[Computed]
     public function totals(): PeriodSummary
     {
-        return (new MonthlySummary)->handle($this->transactions);
+        return (new MonthlySummary)->fromRows($this->transactions);
     }
 
     #[Computed]

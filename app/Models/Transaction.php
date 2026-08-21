@@ -109,8 +109,25 @@ class Transaction extends Model
     #[Scope]
     protected function inMonth(Builder $query, string $month): Builder
     {
-        $start = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
+        $start = self::monthStart($month);
 
         return $query->whereBetween('date', [$start, $start->copy()->endOfMonth()]);
+    }
+
+    /**
+     * Do primeiro dia do mês informado para frente, pela mesma chave "Y-m".
+     *
+     * @param  Builder<$this>  $query
+     * @return Builder<$this>
+     */
+    #[Scope]
+    protected function sinceMonth(Builder $query, string $month): Builder
+    {
+        return $query->where('date', '>=', self::monthStart($month));
+    }
+
+    private static function monthStart(string $month): Carbon
+    {
+        return Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
     }
 }
