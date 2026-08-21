@@ -8,10 +8,9 @@ use App\Queries\BalanceTimeline;
 use App\Queries\Results\CategorySpending;
 use App\Queries\Results\MonthPoint;
 use App\Queries\SpendingByCategory;
-use App\Support\Demo\Transaction;
-use App\Support\DemoData;
 use App\Support\Money;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -19,7 +18,6 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
- * @property-read Collection<int, Transaction> $transactions
  * @property-read string $since
  * @property-read Collection<int, MonthPoint> $timeline
  * @property-read Collection<int, CategorySpending> $ranking
@@ -38,17 +36,6 @@ class Index extends Component
     public int $period = 6;
 
     /**
-     * Fonte de dados provisória — ver App\Support\DemoData.
-     *
-     * @return Collection<int, Transaction>
-     */
-    #[Computed]
-    public function transactions(): Collection
-    {
-        return DemoData::transactions();
-    }
-
-    /**
      * Primeiro mês do recorte. Período de 6 meses inclui o corrente e os cinco anteriores.
      */
     #[Computed]
@@ -63,7 +50,7 @@ class Index extends Component
     #[Computed]
     public function timeline(): Collection
     {
-        return (new BalanceTimeline)->handle($this->transactions, $this->since);
+        return (new BalanceTimeline)->handle(Auth::user(), $this->since);
     }
 
     /**
@@ -72,7 +59,7 @@ class Index extends Component
     #[Computed]
     public function ranking(): Collection
     {
-        return (new SpendingByCategory)->since($this->transactions, $this->since);
+        return (new SpendingByCategory)->since(Auth::user(), $this->since);
     }
 
     #[Computed]

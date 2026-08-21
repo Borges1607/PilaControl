@@ -46,13 +46,27 @@ Legenda: sem marca = já existe no repositório · `+` = a criar conforme o proj
 PilaControl/
 ├── app/
 │   ├── Actions/
-│   │   └── Fortify/                 # CreateNewUser, ResetUserPassword (do starter kit)
-│   │   +   Budgets/                 # casos de uso — 1 classe, 1 método handle()
-│   │   +   Categories/
-│   │   +   Goals/
-│   │   +   Transactions/
+│   │   ├── Budgets/
+│   │   │   ├── RemoveCategoryBudget.php
+│   │   │   └── SetCategoryBudget.php
+│   │   ├── Categories/              # casos de uso — 1 classe, 1 método handle()
+│   │   │   ├── CreateCategory.php
+│   │   │   ├── CreateDefaultCategories.php   # conjunto padrão da conta nova
+│   │   │   └── DeleteCategory.php
+│   │   ├── Fortify/                 # CreateNewUser, ResetUserPassword (do starter kit)
+│   │   ├── Goals/
+│   │   │   ├── CreateGoal.php
+│   │   │   ├── DeleteGoal.php
+│   │   │   └── DepositIntoGoal.php
+│   │   └── Transactions/
+│   │       ├── CreateTransaction.php
+│   │       └── DeleteTransaction.php
 │   │
 │   ├── Concerns/                    # traits compartilhadas (Password/ProfileValidationRules)
+│   │
+│   ├── Exceptions/
+│   │   ├── CategoryInUse.php        # categoria com lançamento não se apaga
+│   │   └── CategoryRejectsType.php  # despesa em categoria de receita
 │   │
 │   ├── Enums/
 │   │   ├── CategoryType.php         # income | expense | both
@@ -65,44 +79,60 @@ PilaControl/
 │   │   ├── Actions/Logout.php
 │   │   ├── Settings/                # Profile, Security, TwoFactor — ver 3.6
 │   │   ├── Budgets/Index.php
+│   │   ├── Categories/CategoriesModal.php
 │   │   ├── Dashboard/Index.php
+│   │   ├── Goals/Index.php
+│   │   ├── Reports/Index.php
 │   │   ├── Transactions/Index.php
-│   │   +   Categories/
 │   │   +   Forms/                   # Livewire Form Objects
-│   │   +   Goals/
-│   │   +   Reports/
 │   │
-│   ├── Models/User.php
-│   │   +   Budget.php  Category.php  Goal.php  Transaction.php
+│   ├── Models/
+│   │   ├── Budget.php               # limite por (categoria, mês); scope forMonth
+│   │   ├── Category.php             # ligada ao usuário; type é CategoryType
+│   │   ├── Goal.php                 # alvo, guardado, prazo; scope byDeadline
+│   │   ├── Transaction.php          # centavos + enum; scopes latestFirst/inMonth
+│   │   └── User.php
+│   │
+│   ├── Observers/
+│   │   └── UserObserver.php         # conta nova recebe as categorias padrão
 │   │
 │   ├── Providers/                   # AppServiceProvider, FortifyServiceProvider
 │   │
-│   +── Policies/                    # todo dado é do usuário logado — policy por model
+│   ├── Policies/                    # policy para o que é endereçado por id próprio
+│   │   ├── CategoryPolicy.php
+│   │   ├── GoalPolicy.php
+│   │   └── TransactionPolicy.php
 │   │
-│   ├── Queries/                     # agregações de leitura (dashboard, relatórios)
+│   ├── Queries/                     # agregações de leitura, no banco — ver 3.3
 │   │   ├── BalanceTimeline.php      # série mensal receita vs despesa
 │   │   ├── BudgetOverview.php       # gasto contra limite, por categoria
 │   │   ├── MonthlySummary.php       # receitas, despesas, saldo de um período
-│   │   ├── SpendingByCategory.php   # ranking de gasto no mês
+│   │   ├── SpendingByCategory.php   # ranking de gasto no mês ou no período
 │   │   └── Results/                 # objetos readonly de retorno — ver 7
 │   │
 │   └── Support/
 │       ├── CategoryPresets.php      # ícones e cores sugeridos no cadastro
+│       ├── DefaultCategories.php    # as treze com que uma conta nasce
 │       ├── Money.php                # value object de valor monetário
-│       ├── MonthLabel.php           # rótulos de mês e data — ver 3.5
-│       ├── DemoData.php             # PROVISÓRIO: dados do protótipo — ver 3.2
-│       └── Demo/                    # PROVISÓRIO: stand-in dos models
+│       └── MonthLabel.php           # rótulos de mês e data — ver 3.5
 │
 ├── bootstrap/  config/  public/  storage/
 │
 ├── database/
-│   ├── factories/
-│   ├── migrations/                  # users, cache, jobs, two_factor, google
-│   ├── seeders/                     # + categorias padrão vêm daqui
+│   ├── factories/                   # User, Category, Transaction, Budget, Goal
+│   ├── migrations/                  # + categories, transactions, budgets, goals
+│   ├── schema/                      # o mesmo schema em SQL puro, para inspeção
+│   ├── seeders/
+│   │   ├── DatabaseSeeder.php       # conta de teste, já com os dados do protótipo
+│   │   └── DemoSeeder.php           # os três meses de vitrine — ver 3.2
 │   └── database.sqlite              # ignorado pelo git
 │
 ├── docs/
 │   └── estrutura-do-projeto.md      # este arquivo
+│
+├── lang/
+│   ├── pt_BR.json                   # strings que o Fortify pede por texto
+│   └── pt_BR/                       # validation, auth, passwords, pagination
 │
 ├── resources/
 │   ├── css/app.css                  # Tailwind v4 + Flux + design tokens
@@ -158,18 +188,20 @@ PilaControl/
 | `AuthScreen` (redefinir) | `views/livewire/auth/reset-password.blade.php` | `/reset-password/{token}` | pronto (Fortify) |
 | — | `views/livewire/auth/create-password.blade.php` | `/definir-senha` | primeira senha de quem veio do Google |
 | — | `views/livewire/auth/two-factor-challenge.blade.php` | — | extra do kit |
-| `Dashboard` | `Livewire\Dashboard\Index` | `/dashboard` | frontend pronto |
-| `TransactionsView` | `Livewire\Transactions\Index` | `/transacoes` | frontend pronto |
-| `BudgetView` | `Livewire\Budgets\Index` | `/orcamento` | frontend pronto |
-| `GoalsView` | `Livewire\Goals\Index` | `/metas` | frontend pronto |
-| `ReportsView` | `Livewire\Reports\Index` | `/relatorios` | frontend pronto |
-| `TransactionModal` | dentro de `Livewire\Transactions\Index` | — (modal) | frontend pronto |
-| `CategoriesModal` | `Livewire\Categories\CategoriesModal` | — (modal) | frontend pronto |
+| `Dashboard` | `Livewire\Dashboard\Index` | `/dashboard` | **pronto, no banco** |
+| `TransactionsView` | `Livewire\Transactions\Index` | `/transacoes` | **pronto, no banco** |
+| `BudgetView` | `Livewire\Budgets\Index` | `/orcamento` | **pronto, no banco** |
+| `GoalsView` | `Livewire\Goals\Index` | `/metas` | **pronto, no banco** |
+| `ReportsView` | `Livewire\Reports\Index` | `/relatorios` | **pronto, no banco** |
+| `TransactionModal` | dentro de `Livewire\Transactions\Index` | — (modal) | **pronto, no banco** |
+| `CategoriesModal` | `Livewire\Categories\CategoriesModal` | — (modal) | **pronto, no banco** |
 | `StatCard`, `TxRow`, `Pill` | `components/ui/` | — | pronto |
 | — (não existe no protótipo) | `Livewire\Settings\*` | `/settings/*` | frontend pronto — ver 3.6 |
 
-"frontend pronto" significa: layout, interações e formatação fiéis ao protótipo, mas lendo de
-`Support\DemoData` — os models ainda não existem. Ver 3.2 e 7.
+"pronto, no banco" significa: layout e interações fiéis ao protótipo, lendo e gravando de
+verdade, com Actions, policies e testes. **Todas as telas do domínio financeiro chegaram lá** —
+não sobrou nada lendo dado de vitrine. "frontend pronto" ficou só nas telas de autenticação e de
+configurações, que não têm dado próprio para converter.
 
 `/` continua sendo a `welcome` do starter kit; o dashboard mora em `/dashboard` porque é para
 lá que o Fortify redireciona depois do login, e é o que os testes de autenticação esperam.
@@ -200,60 +232,139 @@ app/Livewire/Transactions/TransactionModal.php → views/livewire/transactions/t
 | Tipo TS (`src/data.ts`) | Model | Tabela | Status |
 |---|---|---|---|
 | `User` (`src/auth.ts`) | `User` | `users` | pronto |
-| `Category` | `Category` | `categories` | a fazer (hoje `Support\Demo\Category`) |
-| `Transaction` | `Transaction` | `transactions` | a fazer |
-| `Budget` | `Budget` | `budgets` | a fazer |
-| `Goal` | `Goal` | `goals` | a fazer (hoje `Support\Demo\Goal`) |
+| `Category` | `Category` | `categories` | **pronto** — model, factory, policy, Actions |
+| `Transaction` | `Transaction` | `transactions` | **pronto** — model, factory, policy, Actions |
+| `Budget` | `Budget` | `budgets` | **pronto** — model, factory, Actions |
+| `Goal` | `Goal` | `goals` | **pronto** — model, factory, policy, Actions |
 
-**Notas de modelagem** (a validar na fase de banco):
+As quatro tabelas de domínio existem — as migrations estão em `database/migrations/` e o mesmo
+schema em SQL puro, para inspeção no PhpStorm, em `database/schema/`. A travessia acabou:
+nenhuma tela lê de dado de vitrine.
+
+**Notas de modelagem** (decididas nas migrations):
 
 - Todas as tabelas de domínio carregam `user_id` — os dados são por usuário.
-- `Category.type` e `Transaction.type` viram enums PHP backed em string.
-- `Budget` é único por (`user_id`, `category_id`, `month`) — o protótipo já trata assim ao salvar.
-- `Goal.current` provavelmente deriva de aportes; se virar histórico, entra `goal_contributions`.
+- `Category.type` e `Transaction.type` são enums PHP backed em string.
+- `Category` é única por (`user_id`, `type`, `name`) — duas "Outros" convivem porque uma é
+  receita e a outra despesa.
+- `Transaction.category_id` é `restrictOnDelete`: categoria com lançamento não se apaga, o
+  histórico não pode perder a gaveta. `DeleteCategory` checa antes e devolve aviso.
+- `Budget` é único por (`user_id`, `category_id`, `month`), com `month` na chave `"Y-m"` que
+  `MonthLabel::key()` devolve. `category_id` é `cascadeOnDelete`: limite de categoria que não
+  existe mais não é dado.
+- `Goal.current_cents` ficou **campo**, não soma: nenhuma tela mostra histórico de aportes. Se
+  um dia mostrar, entra `goal_contributions` e o campo vira soma — como `Goal::savedAmount()` é
+  a única leitura, a view não muda.
 
-**Ponte provisória.** As três telas prontas leem de `Support\DemoData`, que devolve objetos de
-`Support\Demo\{Category,Transaction}` — classes `readonly` com exatamente as colunas que as
-tabelas vão ter (`amount_cents`, `date`, `type`, `category`). É um único ponto de troca:
+**Conta nova nasce com categorias.** As treze do protótipo estão em `Support\DefaultCategories`
+e entram na tabela pelo `Actions\Categories\CreateDefaultCategories`, chamado pelo
+`Observers\UserObserver` — assim vale para todo caminho de criação (formulário, Google, factory
+de teste) sem que nenhum deles precise lembrar. A partir daí são categorias do usuário como
+qualquer outra: ele renomeia, apaga, cria as suas.
 
-| Ao criar os models | O que muda |
+Uma consequência de projeto: **não existe "categoria padrão" protegida**. O protótipo bloqueava
+a remoção das que vinham no código porque elas eram código; aqui são linhas do usuário. O que
+impede remoção é ter lançamento — regra da FK, não da origem do registro. Na listagem, o rótulo
+`padrão` deu lugar a `em uso`.
+
+**A ponte provisória saiu.** Enquanto os models não existiam, as telas liam de
+`Support\DemoData`, que devolvia objetos `readonly` de `Support\Demo\` com exatamente as colunas
+das tabelas. A conversão foi tela por tela — Categorias, Transações, Orçamento, Metas e, por
+último, as duas de leitura — e no fim o `DemoData`, o namespace `Support\Demo\` inteiro e a união
+de tipo que o `MonthlySummary` carregava durante a travessia foram apagados.
+
+Cada tela seguiu o mesmo roteiro, que vale registrar porque é o que se repete em qualquer troca
+de fonte de dados:
+
+| Camada | O que mudou |
 |---|---|
-| `app/Support/DemoData.php` | apagar |
-| `app/Support/Demo/` | apagar |
-| `app/Queries/*` | trocar o type hint `Support\Demo\X` por `Models\X` |
-| `app/Livewire/*/Index.php` | trocar `DemoData::…` por consulta Eloquent |
-| views, `components/ui/`, `app/Queries/Results/` | nada |
+| `app/Livewire/…` | `DemoData::…` virou consulta Eloquent; estado de escrita virou Action |
+| `app/Queries/*` | passaram a receber `User` e agregar no banco |
+| `app/Queries/Results/*` | só o type hint da categoria: `Support\Demo\Category` → `Models\Category` |
+| views e `components/ui/` | nada, com três exceções: o `id` no `wire:click` deixou de ser string entre aspas (`delete('t2')` → `delete(2)`), o rótulo `padrão` virou `em uso` no modal de categorias, e `saved()`/`target()` viraram `savedAmount()`/`targetAmount()` nas metas |
 
-O estado de escrita também é provisório: `Budgets\Index::$limits`,
-`Transactions\Index::$added`/`$removed`, `Goals\Index::$added`/`$removed`/`$deposits` e
-`Categories\CategoriesModal::$added`/`$removed` guardam as alterações no próprio componente, e
-desaparecem ao sair da página. Uma consequência visível: categoria criada no modal ainda não
-aparece no seletor da tela de Transações, porque cada componente lê o registro por conta
-própria. Some quando a tabela `categories` existir. Somem junto com
-o `DemoData`, dando lugar às Actions de 3.3.
+| Tela | Lê de | Escreve em |
+|---|---|---|
+| Categorias (modal) | `Models\Category` | banco, via Actions |
+| Transações | `Models\Transaction` | banco, via Actions |
+| Orçamento | `Models\Budget` + `Models\Transaction` | banco, via Actions |
+| Metas | `Models\Goal` | banco, via Actions |
+| Dashboard e Relatórios | as quatro Queries | — (só leitura) |
 
-**Armadilha de nome no Livewire.** O framework trata `hydrate{Propriedade}` como hook de ciclo
-de vida e tenta chamá-lo de fora — um método `private hydrateAdded()` ao lado de uma
-propriedade `public $added` estoura com "does not exist" na primeira ação do componente. Os
-auxiliares que montam o estado adicionado chamam-se `addedGoals()` e `addedTransactions()`
-justamente por isso.
+**Os dados de vitrine viraram seeder.** O conteúdo do protótipo — três meses de lançamentos, os
+sete limites do mês corrente e as quatro metas — está em `Database\Seeders\DemoSeeder`, que grava
+pelas mesmas Actions da interface. É desenvolvimento, não produção: o `DatabaseSeeder` o chama
+para a conta de teste, e `php artisan db:seed --class=DemoSeeder` o roda para o primeiro usuário
+do banco. É idempotente — conta que já tem lançamento não é tocada.
+
+**Armadilhas de nome, duas.** Vale saber das duas porque a mesma classe de erro volta sempre que
+se escolhe nome de método:
+
+- No Livewire, `hydrate{Propriedade}` é hook de ciclo de vida e o framework tenta chamá-lo de
+  fora: um `private hydrateAdded()` ao lado de `public $added` estoura com "does not exist" na
+  primeira ação. Deixou de morder quando as telas perderam o `$added`, mas a regra fica.
+- No Eloquent, os nomes dos eventos são **métodos estáticos do model**: `saved`, `created`,
+  `deleting` e companhia registram observador. Um `public function saved()` de instância nem
+  chega a rodar — estoura no carregamento da classe, com "Cannot make static method non static".
+  É por isso que `Goal` expõe `savedAmount()` e `targetAmount()`, e não o par `saved()`/`target()`
+  que o stand-in do protótipo tinha.
 
 ### 3.3 Handlers do protótipo → Actions
 
 | Função em `App.tsx` | Action |
 |---|---|
-| `addTransaction` | `Actions\Transactions\CreateTransaction` |
-| `deleteTransaction` | `Actions\Transactions\DeleteTransaction` |
-| `updateBudget` | `Actions\Budgets\SetCategoryBudget` |
-| `addCategory` | `Actions\Categories\CreateCategory` |
-| `deleteCategory` | `Actions\Categories\DeleteCategory` |
-| `addGoal` | `Actions\Goals\CreateGoal` |
-| `updateGoal` | `Actions\Goals\UpdateGoal` |
-| `deleteGoal` | `Actions\Goals\DeleteGoal` |
+| `addTransaction` | `Actions\Transactions\CreateTransaction` — **feita** |
+| `deleteTransaction` | `Actions\Transactions\DeleteTransaction` — **feita** |
+| `updateBudget` | `Actions\Budgets\SetCategoryBudget` — **feita** |
+| — (o protótipo guardava zero) | `Actions\Budgets\RemoveCategoryBudget` — **feita** |
+| `addCategory` | `Actions\Categories\CreateCategory` — **feita** |
+| `deleteCategory` | `Actions\Categories\DeleteCategory` — **feita** |
+| `addGoal` | `Actions\Goals\CreateGoal` — **feita** |
+| `updateGoal` | `Actions\Goals\DepositIntoGoal` — **feita** |
+| `deleteGoal` | `Actions\Goals\DeleteGoal` — **feita** |
+
+`CreateDefaultCategories` não tem par no protótipo: lá as categorias iniciais eram constante no
+código. Aqui são linhas de uma conta, e alguém tem que criá-las — ver 3.2.
+
+**A categoria é o ponto de partida de `CreateTransaction`, não o usuário.** O lançamento é do
+mesmo dono da gaveta em que entra, então a Action tira o `user_id` da categoria e não há como
+gravar na conta errada. Por isso `user_id` não está no `#[Fillable]` do `Transaction` — e a
+`TransactionFactory` faz o mesmo, derivando o dono da categoria que recebe. `SetCategoryBudget`
+segue a mesma regra.
+
+**`UpdateGoal` virou `DepositIntoGoal`.** O `updateGoal` do protótipo era um patch genérico, mas
+o único campo que a tela muda depois de criada é o quanto já foi guardado — e o nome da Action
+diz a operação, não a tabela. A regra de não passar do alvo mora ali dentro.
+
+**"Sem limite" é a ausência de registro**, não um registro de valor zero. `SetCategoryBudget`
+recusa valor não positivo e `RemoveCategoryBudget` apaga a linha; zero digitado na tela cai no
+segundo, que é o que faz o botão voltar a dizer "Definir limite". Consequência boa: a tabela
+`budgets` só tem linhas que significam algo.
 
 Os cálculos do dashboard e dos relatórios (totais por mês, gasto por categoria, saldo,
 evolução) **não são Actions** — são leitura. Vão para `app/Queries/`, ex.:
 `Queries\MonthlySummary`, `Queries\SpendingByCategory`, `Queries\BalanceTimeline`.
+
+**Toda Query recebe `User` e agrega no banco.** Nenhuma recebe mais a tabela em memória:
+
+| Query | Consultas |
+|---|---|
+| `MonthlySummary` | duas, agrupadas por tipo — uma de soma, uma de contagem |
+| `SpendingByCategory` | soma agrupada por categoria, ordenada; depois carrega só as categorias que apareceram |
+| `BudgetOverview` | três — limites do mês, gasto por categoria, categorias que aceitam despesa |
+| `BalanceTimeline` | uma, de três colunas do período |
+
+Duas exceções a explicar, porque as duas parecem descuido e não são:
+
+- **`BalanceTimeline` ainda agrupa em PHP.** Extrair o mês de uma data em SQL só existe em
+  dialeto (`strftime` no SQLite, `date_format` no MySQL), e o projeto evita isso — é a mesma
+  razão pela qual o escopo `inMonth` do model usa intervalo de datas e não `strftime`. O que sai
+  do banco são três colunas do recorte pedido, não a tabela.
+- **`MonthlySummary` tem duas portas.** `handle(User, ?month)` soma no banco, para quem só quer o
+  total. `fromRows(Collection)` soma linhas já carregadas, e é o caminho da tela de Transações:
+  ela precisa das linhas para a tabela, e o recorte dela vem de filtros quaisquer — tipo, busca,
+  categoria, mês —, não de um mês. Somar de novo no banco seria uma consulta a mais para chegar
+  ao mesmo número.
 
 ### 3.4 Autenticação — Fortify
 
@@ -330,8 +441,24 @@ Onde mexer, quando for o caso:
 - Criação de usuário e reset → `app/Actions/Fortify/`.
 - Configuração de features → `config/fortify.php` e `FortifyServiceProvider`.
 
-Traduzir a interface para pt-BR é trabalho pendente: as strings estão em `__()`, então basta
-criar `lang/pt_BR/`. Nada de reescrever a lógica.
+**Idioma.** O app roda em `pt_BR` (`APP_LOCALE`), com `en` como fallback. As traduções estão em
+`lang/pt_BR/` — `validation.php`, `auth.php`, `passwords.php`, `pagination.php` — mais o
+`lang/pt_BR.json` para as strings que o Fortify pede por texto, não por chave. O que não tiver
+tradução cai nos arquivos em inglês que vêm no framework, então nada quebra por falta de chave;
+aparece em inglês, e é assim que se descobre o que falta.
+
+Duas coisas sobre as mensagens de validação, que valem mais que a tradução em si:
+
+- **A frase concorda com "campo", não com o nome do campo.** Em português o adjetivo concorda em
+  gênero, e o nome do campo entra como variável: ":attribute é obrigatório" viraria "descrição é
+  obrigatório". Por isso as mensagens são "O campo :attribute é obrigatório." — mais longas, e
+  corretas para qualquer nome. O cabeçalho do `validation.php` repete esse raciocínio.
+- **O nome do campo vem da tela, não do arquivo.** As telas do domínio passam `attributes:` na
+  própria chamada do `$this->validate()`, em português. O bloco `attributes` do `validation.php`
+  cobre só os formulários do starter kit, que validam por nomes em inglês (`email`, `password`).
+
+O `tests/Feature/LocaleTest.php` trava isso: se o locale voltar para `en` ou uma mensagem sair
+do padrão, ele falha.
 
 ### 3.5 Helpers de formatação
 
@@ -341,12 +468,12 @@ viram helpers globais:
 - `fmt` e `fmtShort` → `Support\Money` (`format()`, `format(sign: true)`, `short()`).
 - `monthLabel`, `fmtDate`, `currentMonth` → `Support\MonthLabel` (`short()`, `long()`, `date()`,
   `weekdayDate()`, `key()`, `currentKey()`).
-- `daysUntil` → método no model `Goal` (`$goal->daysRemaining()`), quando o model existir.
+- `daysUntil` → método no model `Goal` (`$goal->daysRemaining()`).
 
 `Support\CategoryPresets` segue a mesma lógica: as dezesseis cores e os trinta e seis ícones
-do cadastro de categoria são **conteúdo do design**, não dado de vitrine. Por isso não moram
-no `DemoData` — eles sobrevivem à criação da tabela `categories`, que o `DemoData` não. O
-campo continua aceitando qualquer emoji e qualquer cor; as listas são só o caminho rápido.
+do cadastro de categoria são **conteúdo do design**, não dado de vitrine — e é por isso que
+continuam em `app/Support/` depois de o `DemoData` ter ido para o `DemoSeeder`. O campo aceita
+qualquer emoji e qualquer cor; as listas são só o caminho rápido.
 
 `MonthLabel` existe em vez de `Carbon` direto na Blade por dois motivos: as listas de filtro
 precisam dos rótulos em PHP, e as abreviações do protótipo ("Ago/26") não batem com as do
@@ -510,9 +637,22 @@ resources/views/components/ui/
 - O `Alpine.data('chart', …)` é registrado dentro de `alpine:init`, chamado por
   `resources/js/app.js`. O Alpine vem embutido no script do Livewire, que carrega no fim do
   `<body>`; registrar fora desse evento não garante ordem.
+- **A instância do Chart.js não pode ser propriedade do componente Alpine.** O Alpine embrulha
+  o objeto devolvido pela fábrica em proxy reativo, e o objeto do Chart.js é um grafo grande e
+  circular (chart → canvas → chart, escala → chart): guardado numa propriedade, o `update()`
+  percorre o proxy e estoura com `RangeError: Maximum call stack size exceeded`. O sintoma
+  engana, porque a **construção** passa — ela acontece antes da atribuição —, e só a atualização
+  por evento quebra: nos Relatórios, ao trocar o período; nunca no Dashboard, que não atualiza.
+  A instância mora numa variável do fechamento da fábrica, que o Alpine nunca proxia, e como
+  ele chama a fábrica uma vez por elemento, cada gráfico tem a sua.
 
 Se os relatórios pedirem interação mais pesada (zoom, brush, séries sincronizadas), o plano B
 é ApexCharts — a troca fica contida nos quatro arquivos acima.
+
+**Rebuild não é opcional.** As classes do Tailwind saem de uma varredura dos arquivos Blade, e
+`php artisan serve` sozinho não refaz o bundle: Blade nova com classe que ainda não existia no
+CSS renderiza sem estilo — o que aparece como layout torto, não como erro. Ao mexer em view,
+`npm run dev` (que fica observando) ou `npm run build`.
 
 ---
 
@@ -525,11 +665,20 @@ Pest 5. A suíte espelha a aplicação:
 - `tests/Unit/**` — só código sem banco: `Support\Money`, enums, cálculos puros.
 
 `tests/Feature/Auth/` e `tests/Feature/Settings/` vieram do starter kit e servem de modelo de
-estilo para os nossos. A suíte hoje: **69 testes, 198 asserções**.
+estilo para os nossos. A suíte hoje: **187 testes, 549 asserções**.
 
 O `Livewire::test()` renderiza o componente, não o layout — por isso existe também o
 `FinanceScreensTest`, que faz `GET` nas cinco rotas e verifica a página inteira. É o que pega
-erro de Blade no layout, na sidebar e nos componentes de `ui/`.
+erro de Blade no layout, na sidebar e nos componentes de `ui/`. Como ele age por um usuário de
+factory, sem lançamento nenhum, é também o teste que garante que as telas aguentam conta vazia.
+
+**Montar dado de teste.** A regra é a mesma das Actions: o dono sai da categoria. `Transaction`
+e `Budget` derivam o `user_id` da categoria que recebem, então
+`Transaction::factory()->for($category)->create()` já sai coerente. Para as telas de leitura, que
+precisam de série mensal e de ranking em vez de um lançamento avulso, existe o helper
+`seedLedger($user)` em `tests/Pest.php` — três meses no formato do protótipo. Ele não substitui o
+`DemoSeeder`: o seeder é conteúdo de vitrine para desenvolvimento, o helper é o mínimo com
+números redondos, para as asserções poderem ser exatas.
 
 Além do Pest, o `composer ci:check` roda Pint e Larastan no **nível 7**. Duas consequências
 práticas para quem escrever código novo aqui:
@@ -537,7 +686,11 @@ práticas para quem escrever código novo aqui:
 - Propriedade computada de Livewire (`#[Computed]`) não é vista pelo PHPStan. Declare no
   docblock da classe: `@property-read Collection<int, Transaction> $transactions`.
 - Nada de `(object) [...]`: o nível 7 rejeita acesso a propriedade de `object`. Retorno de
-  Query é classe `readonly` em `app/Queries/Results/`.
+  Query é classe `readonly` em `app/Queries/Results/`. Vale para agregação também: `selectRaw`
+  com `first()` devolveria `object`, então as Queries usam `pluck()`, que dá escalar.
+- `selectRaw()` só aceita **literal**. Montar a expressão por interpolação é recusado, o que é
+  a defesa contra SQL vindo de variável: `MonthlySummary` chama duas vezes, uma por agregação,
+  em vez de receber o trecho por parâmetro.
 
 Toda factory em `database/factories/`, uma por model.
 
@@ -559,19 +712,39 @@ Toda factory em `database/factories/`, uma por model.
 | Rota do dashboard | `/dashboard`, não `/` — é onde o Fortify aterra |
 | Resultado de Query | objeto `readonly` em `app/Queries/Results/`, nunca array solto |
 | Dinheiro na interface | sempre `Support\Money`; float só ao serializar gráfico |
+| `Goal.current_cents` | campo, não soma de aportes — nenhuma tela mostra histórico |
+| Categorias iniciais | linhas do usuário, criadas no `UserObserver`; não há "padrão" protegida |
+| Categoria em uso | não se apaga: `restrictOnDelete` na FK, aviso antes pela Action |
+| Limite de orçamento | "sem limite" é ausência de linha em `budgets`, não linha com zero |
+| Categoria "ambos" no orçamento | entra na tela: aceita despesa, então o gasto dela conta |
+| Aporte em meta | não passa do alvo; a regra fica no `DepositIntoGoal` |
+| Ordem das metas | prazo mais próximo primeiro — é o índice da tabela e o que interessa |
+| Policy por model | só para o que é endereçado por id próprio; `Budget` chega por (categoria, mês) |
+| Agregação | no banco, uma Query por leitura; `BalanceTimeline` agrupa em PHP por portabilidade |
+| Idioma | `pt_BR` com fallback `en`; mensagem concorda com "campo" — ver 3.4 |
+| Dados do protótipo | `Database\Seeders\DemoSeeder`, pelas Actions — desenvolvimento, não produção |
 
 ### Em aberto
 
-- **Models de `Category`, `Transaction` e `Budget`.** É o próximo passo natural: as três telas
-  estão prontas e esperando. Ver a tabela de troca em 3.2.
-- Se `Goal.current` é campo ou soma de aportes (`goal_contributions`).
+- **Mês fixo na tela de Orçamento.** Ela sempre mostra o mês corrente, como o protótipo, mas a
+  tabela `budgets` guarda limite por mês e `BudgetOverview` já recebe a chave — falta só o
+  seletor de mês na interface para ver e editar meses passados.
+- **Paginação na tela de Transações.** Hoje o recorte filtrado vem inteiro do banco, dentro da
+  área de rolagem de 520px — é o que o protótipo faz e o que os totais do topo somam. Passa a
+  pesar quando uma conta acumular alguns milhares de lançamentos; a saída é `paginate()` mais
+  os totais em SQL, e aí a tela ganha um controle que o protótipo não tem.
+- **Conta nova chega ao dashboard vazia** — e é o certo, mas a tela não diz nada além de "Sem
+  dados". Um estado inicial que empurre para o primeiro lançamento seria melhor. Em
+  desenvolvimento, o `DemoSeeder` resolve; em produção, é desenho de tela.
 - Driver de e-mail para o reset de senha funcionar fora do ambiente local.
 - Manter ou remover o 2FA — veio de brinde e ainda não foi decidido. Os passkeys já saíram.
 - Tema claro: hoje o app é escuro por construção e a tela de Aparência saiu por isso. Voltar
   exige projetar a paleta clara no `@theme` do `app.css` — ver 3.6.
-- Traduzir a interface do starter kit para pt-BR (`lang/pt_BR/`). As telas do domínio já
-  nasceram em português, com as strings direto na Blade; quando o `lang/pt_BR/` existir, elas
-  passam por `__()` junto com o resto.
+- **Strings do starter kit que ainda estão em inglês na Blade.** As mensagens de validação, de
+  autenticação e de recuperação de senha já estão traduzidas (ver 3.4); o que sobra são rótulos
+  soltos em arquivos herdados — e os que encontrei (`layouts/app/header.blade.php`,
+  `components/desktop-user-menu.blade.php`) estão na lista de limpeza, sem uso. Se algum voltar
+  a ser usado, a tradução dele já está no `lang/pt_BR.json`.
 - Multi-moeda / contas bancárias: fora do escopo do protótipo, não modelado.
 
 ### Limpeza pendente
@@ -582,5 +755,7 @@ Toda factory em `database/factories/`, uma por model.
   ficaram sem uso quando o `layouts/auth.blade.php` virou a casca própria.
 - `components/placeholder-pattern.blade.php` e `components/desktop-user-menu.blade.php`
   ficaram sem uso quando o layout foi reescrito.
-- `app/Support/DemoData.php` e `app/Support/Demo/` — provisórios por construção, ver 3.2.
 - `Financial control app.zip` na raiz — referência temporária, a remover.
+
+O `app/Support/DemoData.php` e o `app/Support/Demo/` saíram desta lista porque foram apagados:
+o conteúdo deles virou o `DemoSeeder`. Ver 3.2.

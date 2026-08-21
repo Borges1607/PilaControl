@@ -150,9 +150,15 @@
                                 {{ $category->type->label() }}
                             </span>
 
-                            @if ($this->isDefault($category->id))
-                                <span class="w-14 shrink-0 text-end text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-                                    padrão
+                            {{-- Categoria com lançamento não se apaga: o histórico não pode
+                                 perder a gaveta. A ação recusa de todo jeito; aqui só
+                                 explicamos por que o botão não está lá. --}}
+                            @if ($this->isInUse($category->id))
+                                <span
+                                    class="w-14 shrink-0 text-end text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                                    title="Tem lançamentos — não pode ser removida."
+                                >
+                                    em uso
                                 </span>
                             @else
                                 <div class="flex w-14 shrink-0 justify-end">
@@ -160,7 +166,7 @@
                                         size="xs"
                                         variant="subtle"
                                         icon="x-mark"
-                                        wire:click="delete('{{ $category->id }}')"
+                                        wire:click="delete({{ $category->id }})"
                                         wire:confirm="Remover a categoria {{ $category->name }}?"
                                         class="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-expense!"
                                     >

@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Category;
+use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -44,7 +47,32 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Três meses de lançamentos para uma conta, no formato do protótipo: um salário
+ * e três despesas por mês, sempre nas mesmas quatro categorias do conjunto padrão.
+ *
+ * Serve às telas de leitura (Dashboard e Relatórios), que precisam de série
+ * mensal e de ranking — não de um lançamento avulso.
+ */
+function seedLedger(User $user): void
 {
-    // ..
+    $category = fn (string $name): Category => $user->categories()
+        ->where('name', $name)
+        ->sole();
+
+    $salario = $category('Salário');
+    $moradia = $category('Moradia');
+    $alimentacao = $category('Alimentação');
+    $transporte = $category('Transporte');
+
+    foreach ([0, 1, 2] as $monthsAgo) {
+        $start = now()->startOfMonth()->subMonths($monthsAgo);
+
+        $on = fn (int $day): string => $start->copy()->addDays($day)->format('Y-m-d');
+
+        Transaction::factory()->for($salario)->income()->worth(8500)->on($on(0))->create();
+        Transaction::factory()->for($moradia)->worth(1800)->on($on(1))->create();
+        Transaction::factory()->for($alimentacao)->worth(400)->on($on(2))->create();
+        Transaction::factory()->for($transporte)->worth(200)->on($on(3))->create();
+    }
 }

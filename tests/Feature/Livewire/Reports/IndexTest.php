@@ -9,7 +9,12 @@ use App\Queries\Results\MonthPoint;
 use Livewire\Livewire;
 
 beforeEach(function (): void {
-    $this->actingAs(User::factory()->create());
+    $this->user = User::factory()->create();
+
+    $this->actingAs($this->user);
+
+    // Um salário e três despesas por mês, nos três últimos meses — ver tests/Pest.php.
+    seedLedger($this->user);
 });
 
 it('lista os quatro painéis do protótipo', function (): void {
@@ -51,10 +56,22 @@ it('ignora período fora da lista', function (): void {
 it('ordena o ranking do maior gasto para o menor', function (): void {
     $ranking = Livewire::test(Index::class)->instance()->ranking;
 
-    $totals = $ranking->map(fn (CategorySpending $row): int => $row->total->cents)->all();
+    expect($ranking->pluck('category.name')->all())->toBe(['Moradia', 'Alimentação', 'Transporte'])
+        ->and($ranking->map(fn (CategorySpending $row): int => $row->total->cents)->all())
+        // Três meses de 1.800, 400 e 200.
+        ->toBe([540_000, 120_000, 60_000]);
+});
 
-    expect($ranking)->not->toBeEmpty()
-        ->and($totals)->toBe(collect($totals)->sortDesc()->values()->all());
+it('recorta o ranking no período escolhido', function (): void {
+    $ranking = Livewire::test(Index::class)->call('setPeriod', 3)->instance()->ranking;
+
+    expect($ranking->firstWhere('category.name', 'Moradia')->total->cents)->toBe(540_000);
+});
+
+it('não mistura o ranking de dois usuários', function (): void {
+    seedLedger(User::factory()->create());
+
+    expect(Livewire::test(Index::class)->instance()->totalExpense->cents)->toBe(720_000);
 });
 
 it('soma as despesas do período no total', function (): void {

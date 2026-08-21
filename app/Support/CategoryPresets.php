@@ -7,9 +7,9 @@ namespace App\Support;
 /**
  * Atalhos oferecidos no cadastro de categoria.
  *
- * Não é dado de demonstração: sobrevive à criação da tabela `categories`, então
- * mora aqui e não no `DemoData`. O campo continua aceitando qualquer emoji e
- * qualquer cor — estas listas são só o caminho rápido.
+ * Não é dado de demonstração — é conteúdo do design, e é por isso que mora aqui e
+ * não no `Database\Seeders\DemoSeeder`. O campo continua aceitando qualquer emoji
+ * e qualquer cor; estas listas são só o caminho rápido.
  */
 final class CategoryPresets
 {

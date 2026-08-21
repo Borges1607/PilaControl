@@ -33,7 +33,7 @@
                         size="xs"
                         variant="subtle"
                         icon="x-mark"
-                        wire:click="delete('{{ $goal->id }}')"
+                        wire:click="delete({{ $goal->id }})"
                         wire:confirm="Remover a meta {{ $goal->name }}?"
                         class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground!"
                     >
@@ -44,8 +44,8 @@
                 {{-- Progresso --}}
                 <div>
                     <div class="mb-1.5 flex justify-between font-mono text-xs">
-                        <span class="text-income">{{ $goal->saved()->format() }}</span>
-                        <span class="text-muted-foreground">{{ $goal->target()->format() }}</span>
+                        <span class="text-income">{{ $goal->savedAmount()->format() }}</span>
+                        <span class="text-muted-foreground">{{ $goal->targetAmount()->format() }}</span>
                     </div>
 
                     <x-ui.meter
@@ -102,7 +102,7 @@
                     <flux:button
                         size="sm"
                         icon="plus"
-                        wire:click="startDeposit('{{ $goal->id }}')"
+                        wire:click="startDeposit({{ $goal->id }})"
                         class="border-border! bg-transparent! text-xs! text-info! hover:bg-white/5!"
                     >
                         Depositar

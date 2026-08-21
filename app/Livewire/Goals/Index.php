@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Livewire\Goals;
 
-use App\Support\Demo\Goal;
-use App\Support\DemoData;
+use App\Actions\Goals\CreateGoal;
+use App\Actions\Goals\DeleteGoal;
+use App\Actions\Goals\DepositIntoGoal;
+use App\Models\Goal;
 use App\Support\Money;
 use Flux\Flux;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -21,32 +24,9 @@ use Livewire\Component;
 class Index extends Component
 {
     /**
-     * Metas criadas nesta visita.
-     *
-     * Enquanto a tabela `goals` não existe, o estado do componente é a única
-     * memória possível. Ao criar o model: apagar estas três propriedades e ligar
-     * o formulário a Actions\Goals\CreateGoal / UpdateGoal / DeleteGoal.
-     *
-     * @var array<int, array<string, mixed>>
-     */
-    public array $added = [];
-
-    /**
-     * @var array<int, string>
-     */
-    public array $removed = [];
-
-    /**
-     * Aportes feitos nesta visita, em centavos, por id da meta.
-     *
-     * @var array<string, int>
-     */
-    public array $deposits = [];
-
-    /**
      * Id da meta com o campo de aporte aberto.
      */
-    public ?string $depositing = null;
+    public ?int $depositing = null;
 
     public string $depositValue = '';
 
@@ -67,14 +47,10 @@ class Index extends Component
     #[Computed]
     public function goals(): Collection
     {
-        return DemoData::goals()
-            ->concat($this->addedGoals())
-            ->reject(fn (Goal $goal): bool => in_array($goal->id, $this->removed, true))
-            ->map(fn (Goal $goal): Goal => $this->applyDeposit($goal))
-            ->values();
+        return Auth::user()->goals()->byDeadline()->get();
     }
 
-    public function startDeposit(string $goalId): void
+    public function startDeposit(int $goalId): void
     {
         $this->depositing = $goalId;
         $this->depositValue = '';
@@ -90,7 +66,7 @@ class Index extends Component
         $this->resetValidation();
     }
 
-    public function saveDeposit(): void
+    public function saveDeposit(DepositIntoGoal $depositIntoGoal): void
     {
         if ($this->depositing === null) {
             return;
@@ -100,26 +76,19 @@ class Index extends Component
             'depositValue' => ['required', 'numeric', 'gt:0', 'max:99999999'],
         ], attributes: ['depositValue' => 'valor']);
 
-        $goal = $this->goals->firstWhere('id', $this->depositing);
+        $goal = $this->goal($this->depositing);
 
-        if ($goal === null) {
-            $this->cancelDeposit();
+        $this->authorize('update', $goal);
 
-            return;
-        }
-
-        // O aporte não passa do alvo, como no protótipo.
-        $room = max(0, $goal->target_cents - $goal->current_cents);
-        $amount = min($room, Money::fromReais($this->depositValue)->cents);
-
-        $this->deposits[$this->depositing] = ($this->deposits[$this->depositing] ?? 0) + $amount;
+        // O aporte não passa do alvo — a regra está na Action.
+        $depositIntoGoal->handle($goal, Money::fromReais($this->depositValue));
 
         $this->cancelDeposit();
 
         unset($this->goals);
     }
 
-    public function save(): void
+    public function save(CreateGoal $createGoal): void
     {
         $validated = $this->validate([
             'formIcon' => ['required', 'string', 'max:8'],
@@ -135,14 +104,14 @@ class Index extends Component
             'formDeadline' => 'prazo',
         ]);
 
-        $this->added[] = [
-            'id' => 'new-'.count($this->added).'-'.Date::now()->getTimestamp(),
-            'name' => $validated['formName'],
-            'icon' => $validated['formIcon'],
-            'target_cents' => Money::fromReais($validated['formTarget'])->cents,
-            'current_cents' => Money::fromReais($validated['formCurrent'] ?: 0)->cents,
-            'deadline' => $validated['formDeadline'],
-        ];
+        $createGoal->handle(
+            user: Auth::user(),
+            name: $validated['formName'],
+            icon: $validated['formIcon'],
+            target: Money::fromReais($validated['formTarget']),
+            current: Money::fromReais($validated['formCurrent'] ?: 0),
+            deadline: Date::parse($validated['formDeadline']),
+        );
 
         $this->resetForm();
 
@@ -152,15 +121,18 @@ class Index extends Component
         Flux::toast(variant: 'success', text: 'Meta criada.');
     }
 
-    public function delete(string $id): void
+    public function delete(int $id, DeleteGoal $deleteGoal): void
     {
-        $this->removed[] = $id;
-        $this->added = array_values(array_filter(
-            $this->added,
-            fn (array $row): bool => $row['id'] !== $id,
-        ));
+        $goal = $this->goal($id);
 
-        unset($this->deposits[$id]);
+        $this->authorize('delete', $goal);
+
+        $deleteGoal->handle($goal);
+
+        if ($this->depositing === $id) {
+            $this->cancelDeposit();
+        }
+
         unset($this->goals);
 
         Flux::toast(variant: 'success', text: 'Meta removida.');
@@ -178,38 +150,10 @@ class Index extends Component
     }
 
     /**
-     * Nome do método importa: o Livewire trata `hydrate{Propriedade}` como hook de
-     * ciclo de vida e tenta chamá-lo de fora. `hydrateAdded` colidiria com `$added`.
-     *
-     * @return Collection<int, Goal>
+     * A meta sai da relação do usuário: id de fora não existe.
      */
-    private function addedGoals(): Collection
+    private function goal(int $id): Goal
     {
-        return collect($this->added)->map(fn (array $row): Goal => new Goal(
-            id: (string) $row['id'],
-            name: (string) $row['name'],
-            icon: (string) $row['icon'],
-            target_cents: (int) $row['target_cents'],
-            current_cents: (int) $row['current_cents'],
-            deadline: Date::parse((string) $row['deadline'])->startOfDay(),
-        ));
-    }
-
-    private function applyDeposit(Goal $goal): Goal
-    {
-        $deposited = $this->deposits[$goal->id] ?? 0;
-
-        if ($deposited === 0) {
-            return $goal;
-        }
-
-        return new Goal(
-            id: $goal->id,
-            name: $goal->name,
-            icon: $goal->icon,
-            target_cents: $goal->target_cents,
-            current_cents: min($goal->target_cents, $goal->current_cents + $deposited),
-            deadline: $goal->deadline,
-        );
+        return Auth::user()->goals()->findOrFail($id);
     }
 }

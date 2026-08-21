@@ -4,23 +4,37 @@ declare(strict_types=1);
 
 use App\Enums\CategoryType;
 use App\Livewire\Categories\CategoriesModal;
+use App\Models\Category;
 use App\Models\User;
 use App\Support\CategoryPresets;
-use App\Support\Demo\Category;
-use App\Support\DemoData;
+use App\Support\DefaultCategories;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Livewire;
 
 beforeEach(function (): void {
-    $this->actingAs(User::factory()->create());
+    // A conta nasce com o conjunto padrão — é o `UserObserver` que cuida.
+    $this->user = User::factory()->create();
+
+    $this->actingAs($this->user);
 });
 
-it('lista o registro de categorias', function (): void {
+it('lista o registro de categorias do usuário', function (): void {
     Livewire::test(CategoriesModal::class)
         ->assertOk()
         ->assertSee('Nova Categoria')
         ->assertSee('Salário', escape: false)
-        ->assertSee('Alimentação', escape: false)
-        ->assertSee('padrão', escape: false);
+        ->assertSee('Alimentação', escape: false);
+});
+
+it('não mostra categoria de outro usuário', function (): void {
+    Category::factory()->create([
+        'user_id' => User::factory()->create()->id,
+        'name' => 'Categoria alheia',
+    ]);
+
+    $component = Livewire::test(CategoriesModal::class)->assertDontSee('Categoria alheia');
+
+    expect($component->instance()->categories)->toHaveCount(count(DefaultCategories::all()));
 });
 
 it('oferece a base de ícones e de cores como atalho', function (): void {
@@ -36,29 +50,33 @@ it('oferece a base de ícones e de cores como atalho', function (): void {
         ->call('save')
         ->assertHasNoErrors();
 
-    $criada = $component->instance()->categories->first(fn (Category $c): bool => $c->name === 'Salário extra');
-
-    expect($criada->icon)->toBe(CategoryPresets::icons()[0]);
+    expect($this->user->categories()->where('name', 'Salário extra')->value('icon'))
+        ->toBe(CategoryPresets::icons()[0]);
 });
 
 it('abre na aba Todas com o registro inteiro', function (): void {
     $component = Livewire::test(CategoriesModal::class)->assertSet('tab', 'all');
 
-    expect($component->instance()->visible)->toHaveCount(DemoData::categories()->count());
+    expect($component->instance()->visible)->toHaveCount(count(DefaultCategories::all()));
 });
 
 it('filtra por receita e por despesa', function (): void {
+    Category::factory()->both()->create(['user_id' => $this->user->id, 'name' => 'Pix']);
+
     $component = Livewire::test(CategoriesModal::class)->call('setTab', 'income');
 
     expect($component->instance()->visible->every(
         fn (Category $c): bool => $c->type === CategoryType::Income || $c->type === CategoryType::Both
-    ))->toBeTrue();
+    ))->toBeTrue()
+        // "Ambos" aparece nas duas abas.
+        ->and($component->instance()->visible->contains('name', 'Pix'))->toBeTrue();
 
     $component->call('setTab', 'expense');
 
     expect($component->instance()->visible->every(
         fn (Category $c): bool => $c->type === CategoryType::Expense || $c->type === CategoryType::Both
-    ))->toBeTrue();
+    ))->toBeTrue()
+        ->and($component->instance()->visible->contains('name', 'Pix'))->toBeTrue();
 });
 
 it('ignora aba desconhecida', function (): void {
@@ -68,10 +86,11 @@ it('ignora aba desconhecida', function (): void {
 });
 
 it('cria uma categoria', function (): void {
-    $component = Livewire::test(CategoriesModal::class)
+    Livewire::test(CategoriesModal::class)
         ->set('formIcon', '🐾')
         ->set('formName', 'Pet')
-        ->set('formColor', '#26c6da')
+        // Maiúsculas de propósito: o seletor nativo de cor devolve assim.
+        ->set('formColor', '#26C6DA')
         ->set('formType', 'expense')
         ->call('save')
         ->assertHasNoErrors()
@@ -79,10 +98,9 @@ it('cria uma categoria', function (): void {
         // O tipo fica: quem cadastra várias seguidas costuma ficar no mesmo.
         ->assertSet('formType', 'expense');
 
-    $criada = $component->instance()->categories->first(fn (Category $c): bool => $c->name === 'Pet');
+    $criada = $this->user->categories()->where('name', 'Pet')->sole();
 
-    expect($criada)->not->toBeNull()
-        ->and($criada->icon)->toBe('🐾')
+    expect($criada->icon)->toBe('🐾')
         ->and($criada->color)->toBe('#26c6da')
         ->and($criada->type)->toBe(CategoryType::Expense);
 });
@@ -93,31 +111,62 @@ it('recusa categoria sem nome ou com cor inválida', function (): void {
         ->set('formColor', 'azul')
         ->call('save')
         ->assertHasErrors(['formName' => 'required', 'formColor' => 'regex']);
+
+    expect($this->user->categories()->count())->toBe(count(DefaultCategories::all()));
 });
 
-it('remove categoria criada pelo usuário', function (): void {
-    $component = Livewire::test(CategoriesModal::class)
-        ->set('formName', 'Assinaturas')
-        ->call('save');
+it('recusa nome repetido no mesmo tipo, mas aceita no outro', function (): void {
+    Livewire::test(CategoriesModal::class)
+        ->set('formName', 'Alimentação')
+        ->set('formType', 'expense')
+        ->call('save')
+        ->assertHasErrors(['formName' => 'unique']);
 
-    $id = $component->instance()->categories->first(fn (Category $c): bool => $c->name === 'Assinaturas')->id;
+    // Duas "Outros" convivem no registro padrão justamente por isso.
+    Livewire::test(CategoriesModal::class)
+        ->set('formName', 'Alimentação')
+        ->set('formType', 'income')
+        ->call('save')
+        ->assertHasNoErrors();
 
-    $component->call('delete', $id);
-
-    expect($component->instance()->categories->has($id))->toBeFalse();
+    expect($this->user->categories()->where('name', 'Alimentação')->count())->toBe(2);
 });
 
-it('não remove categoria padrão nem pela ação direta', function (): void {
-    // A lista esconde o botão nas padrão, mas a ação é pública.
-    $component = Livewire::test(CategoriesModal::class)->call('delete', 'food');
+it('remove categoria sem lançamento', function (): void {
+    $category = Category::factory()->create(['user_id' => $this->user->id, 'name' => 'Assinaturas']);
 
-    expect($component->instance()->categories->has('food'))->toBeTrue()
-        ->and($component->instance()->removed)->toBeEmpty();
+    Livewire::test(CategoriesModal::class)->call('delete', $category->id);
+
+    expect(Category::query()->find($category->id))->toBeNull();
 });
 
-it('marca como padrão só o que veio do registro', function (): void {
+it('recusa remover categoria com lançamento', function (): void {
+    $category = Category::factory()->create(['user_id' => $this->user->id]);
+
+    $this->user->transactions()->create([
+        'category_id' => $category->id,
+        'date' => now(),
+        'description' => 'Lançamento qualquer',
+        'amount_cents' => 1000,
+        'type' => 'expense',
+    ]);
+
     $component = Livewire::test(CategoriesModal::class);
 
-    expect($component->instance()->isDefault('salary'))->toBeTrue()
-        ->and($component->instance()->isDefault('inventada'))->toBeFalse();
+    expect($component->instance()->isInUse($category->id))->toBeTrue();
+
+    $component->call('delete', $category->id);
+
+    expect(Category::query()->find($category->id))->not->toBeNull();
+});
+
+it('não remove categoria de outro usuário nem pela ação direta', function (): void {
+    // A listagem nem mostra, mas a ação é pública.
+    $alheia = Category::factory()->create(['user_id' => User::factory()->create()->id]);
+
+    // A busca sai da relação do usuário: id de fora simplesmente não existe.
+    expect(fn (): mixed => Livewire::test(CategoriesModal::class)->call('delete', $alheia->id))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect(Category::query()->find($alheia->id))->not->toBeNull();
 });
