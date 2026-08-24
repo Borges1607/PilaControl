@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use InvalidArgumentException;
 use Stringable;
 
 /**
@@ -25,6 +26,11 @@ final readonly class Money implements Stringable
     public static function fromReais(int|float|string $reais): self
     {
         return new self((int) round(((float) $reais) * 100));
+    }
+
+    public static function fromInput(?string $input): self
+    {
+        return new self((int) preg_replace('/\D/', '', (string) $input));
     }
 
     public static function zero(): self
@@ -59,6 +65,24 @@ final readonly class Money implements Stringable
     public function abs(): self
     {
         return new self(abs($this->cents));
+    }
+
+    public function split(int $parts): array
+    {
+        if ($parts < 1) {
+            throw new InvalidArgumentException('NÃ£o se reparte um valor em menos de uma parte.');
+        }
+
+        $sign = $this->cents < 0 ? -1 : 1;
+        $total = abs($this->cents);
+
+        $base = intdiv($total, $parts);
+        $remainder = $total % $parts;
+
+        return array_map(
+            fn (int $index): self => new self($sign * ($base + ($index < $remainder ? 1 : 0))),
+            range(0, $parts - 1),
+        );
     }
 
     public function isNegative(): bool
@@ -99,6 +123,11 @@ final readonly class Money implements Stringable
         }
 
         return $prefix.'R$ '.number_format(abs($this->cents) / 100, 2, ',', '.');
+    }
+
+    public function toInput(): string
+    {
+        return number_format(abs($this->cents) / 100, 2, ',', '.');
     }
 
     /**

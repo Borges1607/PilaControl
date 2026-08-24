@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Livewire\Transactions;
 
+use App\Actions\Transactions\CreateInstallmentTransactions;
 use App\Actions\Transactions\CreateTransaction;
 use App\Actions\Transactions\DeleteTransaction;
 use App\Enums\TransactionType;
@@ -13,6 +14,8 @@ use App\Queries\MonthlySummary;
 use App\Queries\Results\PeriodSummary;
 use App\Support\Money;
 use App\Support\MonthLabel;
+use Carbon\CarbonInterface;
+use Closure;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -31,6 +34,8 @@ use Livewire\Component;
  * @property-read Collection<int, Transaction> $transactions
  * @property-read PeriodSummary $totals
  * @property-read bool $hasFilters
+ * @property-read list<array{index: int, label: string, month: string}> $installmentRows
+ * @property-read Money $installmentsTotal
  */
 #[Title('Transações')]
 class Index extends Component
@@ -62,6 +67,21 @@ class Index extends Component
     public string $formCategoryId = '';
 
     public string $formNotes = '';
+
+
+    public bool $formInstallment = false;
+
+    public string $formInstallmentCount = '12';
+
+    public array $formInstallments = [];
+
+    private const MIN_INSTALLMENTS = 2;
+
+    private const MAX_INSTALLMENTS = 60;
+
+    private const DESCRIPTION_LIMIT = 255;
+
+    private const MAX_CENTS = 9_999_999_900;
 
     public function mount(): void
     {
@@ -155,6 +175,35 @@ class Index extends Component
             || $this->month !== '';
     }
 
+    #[Computed]
+    public function installmentRows(): array
+    {
+        if (! $this->formInstallment) {
+            return [];
+        }
+
+        $first = $this->firstInstallmentDate();
+        $count = count($this->formInstallments);
+
+        return array_map(
+            fn (int $index): array => [
+                'index' => $index,
+                'label' => ($index + 1).'/'.$count,
+                'month' => MonthLabel::short($first->copy()->addMonthsNoOverflow($index)),
+            ],
+            array_keys($this->formInstallments),
+        );
+    }
+
+    #[Computed]
+    public function installmentsTotal(): Money
+    {
+        return Money::sum(array_map(
+            fn (string $amount): Money => Money::fromInput($amount),
+            $this->formInstallments,
+        ));
+    }
+
     public function setType(string $type): void
     {
         if (! in_array($type, ['all', 'income', 'expense'], true)) {
@@ -188,40 +237,99 @@ class Index extends Component
         unset($this->formCategories);
     }
 
-    public function save(CreateTransaction $createTransaction): void
+    public function updatedFormInstallment(): void
     {
-        $validated = $this->validate([
-            'formType' => ['required', 'in:income,expense'],
-            'formDescription' => ['required', 'string', 'max:255'],
-            'formAmount' => ['required', 'numeric', 'gt:0', 'max:99999999'],
-            'formDate' => ['required', 'date'],
-            // A lista é só das compatíveis com o tipo: categoria de receita não
-            // recebe despesa, e o seletor já mostra apenas essas.
-            'formCategoryId' => ['required', Rule::in($this->formCategoryIds())],
-            'formNotes' => ['nullable', 'string', 'max:255'],
-        ], attributes: [
+        if ($this->formInstallment) {
+            $this->spreadAmountOverInstallments();
+        } else {
+            $this->formInstallments = [];
+        }
+
+        $this->resetValidation();
+    }
+
+    public function updatedFormInstallmentCount(): void
+    {
+        $this->formInstallmentCount = (string) $this->installmentCount();
+
+        $this->spreadAmountOverInstallments();
+    }
+
+    public function updatedFormAmount(): void
+    {
+        if ($this->formInstallment) {
+            $this->spreadAmountOverInstallments();
+        }
+    }
+
+    public function updatedFormInstallments(): void
+    {
+        unset($this->installmentsTotal);
+
+        $this->formAmount = $this->installmentsTotal->toInput();
+    }
+
+    public function updatedFormDate(): void
+    {
+        unset($this->installmentRows);
+    }
+
+    public function save(
+        CreateTransaction $createTransaction,
+        CreateInstallmentTransactions $createInstallmentTransactions,
+    ): void {
+        $validated = $this->validate($this->formRules(), attributes: [
             'formType' => 'tipo',
             'formDescription' => 'descrição',
             'formAmount' => 'valor',
             'formDate' => 'data',
             'formCategoryId' => 'categoria',
             'formNotes' => 'observações',
+            'formInstallmentCount' => 'número de parcelas',
+            'formInstallments' => 'parcelas',
+            'formInstallments.*' => 'valor da parcela',
         ]);
 
-        $createTransaction->handle(
-            category: $this->categories[(int) $validated['formCategoryId']],
-            type: TransactionType::from($validated['formType']),
-            description: $validated['formDescription'],
-            amount: Money::fromReais($validated['formAmount']),
-            date: Date::parse($validated['formDate']),
-            notes: $validated['formNotes'] ?: null,
-        );
+        $category = $this->categories[(int) $validated['formCategoryId']];
+        $type = TransactionType::from($validated['formType']);
+        $date = Date::parse($validated['formDate']);
+        $notes = $validated['formNotes'] ?: null;
+
+        if ($this->formInstallment) {
+            $installments = $createInstallmentTransactions->handle(
+                category: $category,
+                type: $type,
+                description: $validated['formDescription'],
+                amounts: array_map(
+                    fn (string $amount): Money => Money::fromInput($amount),
+                    array_values($validated['formInstallments']),
+                ),
+                firstDate: $date,
+                notes: $notes,
+            );
+
+            $message = trans_choice(
+                ':count parcela adicionada.|:count parcelas adicionadas.',
+                $installments->count(),
+            );
+        } else {
+            $createTransaction->handle(
+                category: $category,
+                type: $type,
+                description: $validated['formDescription'],
+                amount: Money::fromInput($validated['formAmount']),
+                date: $date,
+                notes: $notes,
+            );
+
+            $message = 'Transação adicionada.';
+        }
 
         $this->resetForm();
         $this->forgetResults();
 
         Flux::modal('nova-transacao')->close();
-        Flux::toast(variant: 'success', text: 'Transação adicionada.');
+        Flux::toast(variant: 'success', text: $message);
     }
 
     public function delete(int $id, DeleteTransaction $deleteTransaction): void
@@ -246,10 +354,120 @@ class Index extends Component
         $this->formDate = Date::now()->format('Y-m-d');
         $this->formCategoryId = '';
         $this->formNotes = '';
+        $this->formInstallment = false;
+        $this->formInstallmentCount = '12';
+        $this->formInstallments = [];
 
         $this->resetValidation();
 
-        unset($this->formCategories);
+        unset($this->formCategories, $this->installmentRows, $this->installmentsTotal);
+    }
+
+    /**
+     * As regras mudam com o parcelamento ligado: aí quem vale é a lista de
+     * parcelas, e o campo de valor vira só o espelho da soma delas.
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private function formRules(): array
+    {
+        $rules = [
+            'formType' => ['required', 'in:income,expense'],
+            'formDescription' => ['required', 'string', 'max:'.$this->descriptionLimit()],
+            'formAmount' => ['required', self::moneyRule()],
+            'formDate' => ['required', 'date'],
+            // A lista é só das compatíveis com o tipo: categoria de receita não
+            // recebe despesa, e o seletor já mostra apenas essas.
+            'formCategoryId' => ['required', Rule::in($this->formCategoryIds())],
+            'formNotes' => ['nullable', 'string', 'max:255'],
+        ];
+
+        if (! $this->formInstallment) {
+            return $rules;
+        }
+
+        // Nada a cobrar do total: ele é derivado das parcelas, e exigi-lo aqui
+        // só duplicaria o erro que elas já dão.
+        $rules['formAmount'] = ['nullable'];
+
+        $rules['formInstallmentCount'] = [
+            'required', 'integer',
+            'min:'.self::MIN_INSTALLMENTS,
+            'max:'.self::MAX_INSTALLMENTS,
+        ];
+
+        $rules['formInstallments'] = ['array', 'size:'.$this->installmentCount()];
+        $rules['formInstallments.*'] = ['required', self::moneyRule()];
+
+        return $rules;
+    }
+
+    /**
+     * Reparte o valor do campo de total em partes iguais, com o resto nas
+     * primeiras — daí o usuário ajusta parcela a parcela se precisar.
+     */
+    private function spreadAmountOverInstallments(): void
+    {
+        $this->formInstallments = array_map(
+            fn (Money $part): string => $part->toInput(),
+            Money::fromInput($this->formAmount)->split($this->installmentCount()),
+        );
+
+        unset($this->installmentRows, $this->installmentsTotal);
+    }
+
+    /**
+     * O número de parcelas dentro dos limites — o campo é digitado à mão e
+     * chega como veio.
+     */
+    private function installmentCount(): int
+    {
+        return max(
+            self::MIN_INSTALLMENTS,
+            min(self::MAX_INSTALLMENTS, (int) $this->formInstallmentCount),
+        );
+    }
+
+    /**
+     * Quanto sobra para a descrição depois do sufixo "(12/12)".
+     */
+    private function descriptionLimit(): int
+    {
+        if (! $this->formInstallment) {
+            return self::DESCRIPTION_LIMIT;
+        }
+
+        $count = $this->installmentCount();
+
+        return self::DESCRIPTION_LIMIT - mb_strlen(sprintf(' (%d/%d)', $count, $count));
+    }
+
+    /**
+     * A data da primeira parcela. Vem do `<input type="date">`, mas pode chegar
+     * vazia ou torta — aí o cronograma se apoia em hoje até o campo ficar bom.
+     */
+    private function firstInstallmentDate(): CarbonInterface
+    {
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $this->formDate) === 1
+            ? Date::parse($this->formDate)
+            : Date::now();
+    }
+
+    /**
+     * Campo de dinheiro chega com máscara ("1.234,56"), então `numeric` não
+     * serve — quem vale é o valor que se lê dela.
+     */
+    private static function moneyRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $cents = Money::fromInput(is_string($value) ? $value : null)->cents;
+
+            if ($cents <= 0) {
+                $fail('O campo :attribute deve ser maior que zero.')->translate();
+            } elseif ($cents > self::MAX_CENTS) {
+                $fail('O campo :attribute passa do valor máximo de R$ 99.999.999,00.')->translate();
+            }
+        };
     }
 
     /**

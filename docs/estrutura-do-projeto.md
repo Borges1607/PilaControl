@@ -59,6 +59,7 @@ PilaControl/
 │   │   │   ├── DeleteGoal.php
 │   │   │   └── DepositIntoGoal.php
 │   │   └── Transactions/
+│   │       ├── CreateInstallmentTransactions.php
 │   │       ├── CreateTransaction.php
 │   │       └── DeleteTransaction.php
 │   │
@@ -315,6 +316,7 @@ se escolhe nome de método:
 |---|---|
 | `addTransaction` | `Actions\Transactions\CreateTransaction` — **feita** |
 | `deleteTransaction` | `Actions\Transactions\DeleteTransaction` — **feita** |
+| — (o protótipo não parcelava) | `Actions\Transactions\CreateInstallmentTransactions` — **feita** |
 | `updateBudget` | `Actions\Budgets\SetCategoryBudget` — **feita** |
 | — (o protótipo guardava zero) | `Actions\Budgets\RemoveCategoryBudget` — **feita** |
 | `addCategory` | `Actions\Categories\CreateCategory` — **feita** |
@@ -331,6 +333,21 @@ mesmo dono da gaveta em que entra, então a Action tira o `user_id` da categoria
 gravar na conta errada. Por isso `user_id` não está no `#[Fillable]` do `Transaction` — e a
 `TransactionFactory` faz o mesmo, derivando o dono da categoria que recebe. `SetCategoryBudget`
 segue a mesma regra.
+
+**Compra parcelada não é um tipo de lançamento — são N lançamentos.** A geladeira em 12x vira
+doze linhas, uma por mês, com a descrição sufixada (`Geladeira (3/12)`). Nenhuma coluna nova,
+nenhum caso especial: o gasto do mês, o limite da categoria e os relatórios já contam cada
+parcela no mês em que ela cai, que é o que a fatura mostra. `CreateInstallmentTransactions`
+grava tudo dentro de uma transação de banco — meia compra lançada seria pior que nenhuma — e
+usa `addMonthsNoOverflow`, para que uma compra em 31/01 tenha a segunda parcela em 28/02 e não
+em 03/03.
+
+O rateio mora em `Money::split()`: parte em centavos inteiros e joga o resto nas primeiras
+parcelas, como a fatura do cartão (R$ 10,00 em 3 vira 3,34 + 3,33 + 3,33). A soma das partes é
+sempre o valor original — é isso que o método garante. A tela usa esse rateio só como sugestão:
+cada campo de parcela é editável, porque a entrada e a última costumam ter valor diferente. Ali
+o total e as parcelas se espelham nos dois sentidos — mexer no total redistribui em partes
+iguais, mexer numa parcela reescreve o total —, e quem manda na hora de salvar são as parcelas.
 
 **`UpdateGoal` virou `DepositIntoGoal`.** O `updateGoal` do protótipo era um patch genérico, mas
 o único campo que a tela muda depois de criada é o quanto já foi guardado — e o nome da Action

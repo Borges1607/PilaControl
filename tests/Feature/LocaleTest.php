@@ -27,16 +27,30 @@ it('devolve a mensagem de campo obrigatório em português', function (): void {
 });
 
 it('traduz as outras regras que os formulários usam', function (): void {
+    $component = Livewire::test(Goals::class)
+        ->set('formName', 'Viagem')
+        ->set('formTarget', 'muito')
+        ->call('save');
+
+    expect($component->errors()->first('formTarget'))->toBe('O campo valor alvo deve ser um número.');
+
     $component = Livewire::test(Transactions::class)
         ->set('formDescription', 'Padaria')
-        ->set('formAmount', 'muito')
         // Preenchido, mas não é categoria dele: cai na regra `in`, não na `required`.
         ->set('formCategoryId', '999999')
         ->call('save');
 
-    expect($component->errors()->first('formAmount'))->toBe('O campo valor deve ser um número.')
-        ->and($component->errors()->first('formCategoryId'))
+    expect($component->errors()->first('formCategoryId'))
         ->toBe('O valor selecionado para categoria é inválido.');
+});
+
+it('nomeia o campo na recusa do valor com máscara', function (): void {
+    $component = Livewire::test(Transactions::class)
+        ->set('formDescription', 'Padaria')
+        ->set('formAmount', '0,00')
+        ->call('save');
+
+    expect($component->errors()->first('formAmount'))->toBe('O campo valor deve ser maior que zero.');
 });
 
 it('traduz também as regras de data e de comparação', function (): void {

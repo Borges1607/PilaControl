@@ -118,22 +118,73 @@
             />
 
             <div class="grid grid-cols-2 gap-3">
-                <flux:input
-                    label="Valor (R$)"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0,00"
-                    wire:model="formAmount"
-                    class="font-mono!"
+                <x-ui.money-input
+                    :label="$this->formInstallment ? 'Valor total (R$)' : 'Valor (R$)'"
+                    wire:model.live.blur="formAmount"
                 />
 
                 <flux:input
-                    label="Data"
+                    :label="$this->formInstallment ? 'Data da 1ª parcela' : 'Data'"
                     type="date"
-                    wire:model="formDate"
+                    wire:model.live="formDate"
                     class="font-mono!"
                 />
+            </div>
+
+            {{-- Parcelamento: uma linha por mês, com o valor de cada parcela --}}
+            <div class="flex flex-col gap-3 rounded border border-border bg-secondary/50 p-3">
+                <flux:switch
+                    wire:model.live="formInstallment"
+                    label="Parcelar em vários meses"
+                    description="Ex.: geladeira em 12x — vira um lançamento por mês."
+                />
+
+                @if ($this->formInstallment)
+                    <flux:input
+                        label="Número de parcelas"
+                        type="number"
+                        step="1"
+                        min="2"
+                        max="60"
+                        wire:model.live.blur="formInstallmentCount"
+                        class="font-mono!"
+                    />
+
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center justify-between text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                            <span>Parcelas</span>
+                            <span>Valor (R$)</span>
+                        </div>
+
+                        <div class="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+                            @foreach ($this->installmentRows as $row)
+                                <div wire:key="parcela-{{ $row['index'] }}" class="flex items-center gap-2">
+                                    <span class="w-9 shrink-0 font-mono text-xs text-muted-foreground">
+                                        {{ $row['label'] }}
+                                    </span>
+
+                                    <span class="w-14 shrink-0 font-mono text-xs text-muted-foreground">
+                                        {{ $row['month'] }}
+                                    </span>
+
+                                    <div class="min-w-0 flex-1">
+                                        <x-ui.money-input
+                                            size="sm"
+                                            wire:model.live.blur="formInstallments.{{ $row['index'] }}"
+                                        />
+
+                                        <flux:error name="formInstallments.{{ $row['index'] }}" class="mt-1!" />
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        <div class="flex items-center justify-between border-t border-border pt-2 font-mono text-xs">
+                            <span class="text-muted-foreground">Total parcelado</span>
+                            <span class="font-medium text-foreground">{{ $this->installmentsTotal->format() }}</span>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <flux:select label="Categoria" wire:model="formCategoryId">
@@ -158,7 +209,7 @@
                     ? 'bg-income! text-background!'
                     : 'bg-expense! text-background!' }} border-transparent! font-semibold!"
             >
-                Adicionar
+                {{ $this->formInstallment ? 'Adicionar parcelas' : 'Adicionar' }}
             </flux:button>
         </form>
     </flux:modal>
