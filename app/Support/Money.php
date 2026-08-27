@@ -67,6 +67,9 @@ final readonly class Money implements Stringable
         return new self(abs($this->cents));
     }
 
+    /**
+     * @return array<int, self>
+     */
     public function split(int $parts): array
     {
         if ($parts < 1) {
