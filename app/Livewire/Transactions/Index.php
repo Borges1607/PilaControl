@@ -68,7 +68,6 @@ class Index extends Component
 
     public string $formNotes = '';
 
-
     public bool $formInstallment = false;
 
     public string $formInstallmentCount = '12';
