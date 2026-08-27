@@ -68,11 +68,13 @@ class Index extends Component
 
     public string $formNotes = '';
 
-
     public bool $formInstallment = false;
 
     public string $formInstallmentCount = '12';
 
+    /**
+     * @var array<int, string>
+     */
     public array $formInstallments = [];
 
     private const MIN_INSTALLMENTS = 2;
@@ -175,6 +177,9 @@ class Index extends Component
             || $this->month !== '';
     }
 
+    /**
+     * @return list<array{index: int, label: string, month: string}>
+     */
     #[Computed]
     public function installmentRows(): array
     {
